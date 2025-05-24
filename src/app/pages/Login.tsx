@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useExcelContext } from '../common/contexts/ExcelContext';
+import { ProgressSpinner } from 'primereact/progressspinner';
 import { FileUpload } from 'primereact/fileupload';
 import { Card } from 'primereact/card';
-import { ProgressSpinner } from 'primereact/progressspinner';
 
 const Login = () => {
+    // Variables de estado
     const navigate = useNavigate();
-    const { loadExcelFromFile } = useExcelContext();
     const [loading, setLoading] = useState(false);
+    const { loadExcelFromFile } = useExcelContext();
 
     interface FileUploadEvent {
         files: File[];
@@ -16,9 +17,10 @@ const Login = () => {
 
     const onUpload = async (event: FileUploadEvent) => {
         try {
-            setLoading(true);
-            const file = event.files[0];
-            await loadExcelFromFile(file);
+            setLoading(true);            const file = event.files[0];
+            const excelData = await loadExcelFromFile(file);
+            // Guardamos los datos en localStorage
+            localStorage.setItem('excelData', JSON.stringify(excelData));
             localStorage.setItem('fileRoute', 'true');
             navigate('/');
         } catch (error) {
@@ -42,7 +44,9 @@ const Login = () => {
                     {loading ? (
                         <div className="flex flex-col items-center justify-center p-6">
                             <ProgressSpinner />
-                            <p className="mt-4 text-gray-600">Procesando archivo...</p>
+                            <p className="mt-4 text-gray-600">
+                                Procesando archivo...
+                            </p>
                         </div>
                     ) : (
                         <FileUpload

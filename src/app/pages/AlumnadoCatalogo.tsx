@@ -17,6 +17,7 @@ const AlumnadoCatalogo = () => {
                     { JSON.stringify(excelCell) }
                 </div>;
     };
+    
     return (
         <Menu>
             <div className="mb-2">
