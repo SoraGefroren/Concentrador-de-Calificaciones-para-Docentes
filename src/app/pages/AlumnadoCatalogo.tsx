@@ -1,9 +1,10 @@
 import Menu from '../common/Menu.tsx';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
-import { React } from 'react';
+import { useExcelContext } from '../common/contexts/ExcelContext';
 
-const AlumnadoCatalogo = ({ excelData }) => {
+const AlumnadoCatalogo = () => {
+    const { excelData } = useExcelContext();
     const chooseBodyTemplate = (excelColumn) => {
         if (excelColumn == 'NOMBRE') {
             return statusBodyTemplate;

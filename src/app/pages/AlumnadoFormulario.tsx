@@ -1,7 +1,8 @@
-import React from 'react';
 import Menu from '../common/Menu.tsx';
+import { useExcelContext } from '../common/contexts/ExcelContext';
 
-const AlumnadoFormulario = ({ excelData }) => {
+const AlumnadoFormulario = () => {
+    const { excelData } = useExcelContext();
     return (
         <Menu>
             <h1>AlumnadoFormulario</h1>

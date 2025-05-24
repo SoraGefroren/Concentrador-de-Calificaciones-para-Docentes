@@ -5,11 +5,11 @@ interface ValidateAccessToRouteProps {
 }
 
 export const ValidateAccessToRoute = ({ element }: ValidateAccessToRouteProps) => {
+    // Recupera la ruta almacenada
     const fileRoute = localStorage.getItem('fileRoute');
-    // return localStorage.getItem('fileRoute') !== null;
-    // fileRoute ? element : <Navigate to="/login" />;
-    // if (!fileRoute) {
-    //     return <Navigate to="/login" replace />;
-    // }
+    // Si no tengo la ruta, volvemos al login
+    if (!fileRoute) {
+        return <Navigate to="/login" replace />;
+    }
     return element;
 };

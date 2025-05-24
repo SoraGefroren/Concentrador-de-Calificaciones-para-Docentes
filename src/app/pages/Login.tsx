@@ -1,18 +1,66 @@
-import { useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useExcelContext } from '../common/contexts/ExcelContext';
+import { FileUpload } from 'primereact/fileupload';
+import { Card } from 'primereact/card';
+import { ProgressSpinner } from 'primereact/progressspinner';
 
-function Login() {
-    const { loadExcelFromPath } = useExcelContext();
+const Login = () => {
     const navigate = useNavigate();
+    const { loadExcelFromFile } = useExcelContext();
+    const [loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        const loadInitialData = async () => {
-            await loadExcelFromPath('../../__FileTest.xlsx');
+    interface FileUploadEvent {
+        files: File[];
+    }
+
+    const onUpload = async (event: FileUploadEvent) => {
+        try {
+            setLoading(true);
+            const file = event.files[0];
+            await loadExcelFromFile(file);
             localStorage.setItem('fileRoute', 'true');
             navigate('/');
-        };
-        loadInitialData();
-    }, []);
+        } catch (error) {
+            console.error('Error al cargar el archivo:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    return <div>Cargando archivo inicial...</div>;
-}
+    const header = (
+        <div className="text-center p-5">
+            <h1 className="text-3xl font-bold mb-4">Sistema de Calificaciones</h1>
+            <p className="text-gray-600">Por favor, carga tu archivo Excel de calificaciones para comenzar</p>
+        </div>
+    );
+
+    return (
+        <div className="flex items-center justify-center min-h-screen bg-gray-100">
+            <Card className="w-full max-w-xl" header={header}>
+                <div className="p-4">
+                    {loading ? (
+                        <div className="flex flex-col items-center justify-center p-6">
+                            <ProgressSpinner />
+                            <p className="mt-4 text-gray-600">Procesando archivo...</p>
+                        </div>
+                    ) : (
+                        <FileUpload
+                            mode="basic"
+                            name="excel"
+                            accept=".xlsx,.xls"
+                            maxFileSize={1000000}
+                            customUpload
+                            uploadHandler={onUpload}
+                            auto
+                            chooseLabel="Seleccionar archivo Excel"
+                            className="w-full"
+                        />
+                    )}
+                </div>
+            </Card>
+        </div>
+    );
+};
+
+export default Login;

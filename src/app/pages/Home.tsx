@@ -1,8 +1,8 @@
-import * as XLSX from 'xlsx';
 import Menu from '../common/Menu.tsx';
-import { React, useEffect, useState } from 'react';
+import { useExcelContext } from '../common/contexts/ExcelContext';
 
-const Home = ({ excelData }) => {
+const Home = () => {
+    const { excelData } = useExcelContext();
     return (
         <Menu>
             <form className="w-full max-w-md">
