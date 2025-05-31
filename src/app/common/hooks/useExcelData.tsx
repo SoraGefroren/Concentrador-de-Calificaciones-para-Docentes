@@ -40,11 +40,39 @@ export const useExcelData = () => {
             setLoading(true);
             const response = await fetch(filePath);
             const data = await response.arrayBuffer();
-            const workbook = XLSX.read(data, { type: 'array' });
+            // Convertir ArrayBuffer a Uint8Array y decodificar como UTF-8
+            const decoder = new TextDecoder('utf-8');
+            const workbook = XLSX.read(new Uint8Array(data), { 
+                type: 'array',
+                cellDates: true,
+                cellNF: false,
+                cellText: true
+            });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-            const processedData = processExcelData(jsonData);
+            // Asegurarnos de que los datos se lean como texto
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { 
+                header: 1,
+                raw: false,
+                defval: '',
+                blankrows: false
+            }) as (string | number)[][];
+            
+            // Decodificar cada string en el array
+            const decodedData = jsonData.map(row =>
+                row.map(cell => {
+                    if (typeof cell === 'string') {
+                        try {
+                            return decoder.decode(new TextEncoder().encode(cell));
+                        } catch (e) {
+                            return cell;
+                        }
+                    }
+                    return cell;
+                })
+            );
+            
+            const processedData = processExcelData(decodedData);
             const updatedData = updateExcelData(processedData);
             setError(null);
             return updatedData;
@@ -63,11 +91,39 @@ export const useExcelData = () => {
         try {
             setLoading(true);
             const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, { type: 'array' });
+            // Convertir ArrayBuffer a Uint8Array y decodificar como UTF-8
+            const decoder = new TextDecoder('utf-8');
+            const workbook = XLSX.read(new Uint8Array(data), { 
+                type: 'array',
+                cellDates: true,
+                cellNF: false,
+                cellText: true
+            });
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-            const processedData = processExcelData(jsonData);
+            // Asegurarnos de que los datos se lean como texto
+            const jsonData = XLSX.utils.sheet_to_json(sheet, { 
+                header: 1,
+                raw: false,
+                defval: '',
+                blankrows: false
+            }) as (string | number)[][];
+            
+            // Decodificar cada string en el array
+            const decodedData = jsonData.map(row =>
+                row.map(cell => {
+                    if (typeof cell === 'string') {
+                        try {
+                            return decoder.decode(new TextEncoder().encode(cell));
+                        } catch (e) {
+                            return cell;
+                        }
+                    }
+                    return cell;
+                })
+            );
+            
+            const processedData = processExcelData(decodedData);
             const updatedData = updateExcelData(processedData);
             setError(null);
             return updatedData;
