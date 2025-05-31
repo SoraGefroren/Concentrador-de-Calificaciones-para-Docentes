@@ -33,7 +33,9 @@ export const useExcelData = () => {
         setExcelData(newData);
         localStorage.setItem('excelData', JSON.stringify(newData));
         return newData;
-    };    const loadExcelFromPath = async (filePath: string): Promise<ExcelData[]> => {
+    };
+    
+    const loadExcelFromPath = async (filePath: string): Promise<ExcelData[]> => {
         try {
             setLoading(true);
             const response = await fetch(filePath);
@@ -42,7 +44,6 @@ export const useExcelData = () => {
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-            
             const processedData = processExcelData(jsonData);
             const updatedData = updateExcelData(processedData);
             setError(null);
@@ -66,7 +67,6 @@ export const useExcelData = () => {
             const sheetName = workbook.SheetNames[0];
             const sheet = workbook.Sheets[sheetName];
             const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-            
             const processedData = processExcelData(jsonData);
             const updatedData = updateExcelData(processedData);
             setError(null);

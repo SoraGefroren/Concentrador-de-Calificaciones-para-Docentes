@@ -4,6 +4,7 @@ import { useExcelContext } from '../common/contexts/ExcelContext';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { FileUpload } from 'primereact/fileupload';
 import { Card } from 'primereact/card';
+import FileUploadEvent from '../features/adds/FileUploadEvent';
 
 const Login = () => {
     // Variables de estado
@@ -11,13 +12,10 @@ const Login = () => {
     const [loading, setLoading] = useState(false);
     const { loadExcelFromFile } = useExcelContext();
 
-    interface FileUploadEvent {
-        files: File[];
-    }
-
     const onUpload = async (event: FileUploadEvent) => {
         try {
-            setLoading(true);            const file = event.files[0];
+            setLoading(true);
+            const file = event.files[0];
             const excelData = await loadExcelFromFile(file);
             // Guardamos los datos en localStorage
             localStorage.setItem('excelData', JSON.stringify(excelData));
