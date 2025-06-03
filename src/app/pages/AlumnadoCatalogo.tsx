@@ -5,26 +5,22 @@ import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
-import { Dialog } from 'primereact/dialog';
 import { useState } from 'react';
+import StudentDetailsModal from '../features/students/components/modals/StudentDetailsModal';
+import StudentActionButtons from '../features/students/components/modals/StudentActionButtons';
 
 const AlumnadoCatalogo = () => {
     const { excelData } = useExcelContext();
     const navigate = useNavigate();
     const [selectedData, setSelectedData] = useState<ExcelData | null>(null);
-    const [showModalBlack, setShowModalBlack] = useState(false);
-    const [showModalGreen, setShowModalGreen] = useState(false);
-    const [showModalPurple, setShowModalPurple] = useState(false);
+    const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);
 
     // Lista de columnas que queremos mostrar
     const columnsToShow = [
         'ID',
         'NOMBRE',
         'APELLIDO',
-        // 'CORREO.ELECTONICO',
         'CORREO.ELECTONICO ',
-        // '"CORREO.ELECTONICO "',
-        // 'ID2',
         'SUMA.PORCENTAJE.ACTIVIDADES',
         'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES',
         'PARTICIPACIÓN',
@@ -69,24 +65,7 @@ const AlumnadoCatalogo = () => {
             }
         };
     };
-    
-    const rowZeroContentDateTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
-        // Si el campo es una fecha, lo convertimos a formato DD/MM/YYYY
-        if (rowData[props.field] && (rowData[props.field] !== 'Fecha')) {
-            // Excel cuenta desde 1 de enero de 1900, pero tiene un bug que considera 1900 como bisiesto
-            const excelEpoch = new Date(1899, 11, 30); // 30 de diciembre de 1899
-            const date = new Date(excelEpoch.getTime() + (parseFloat((rowData[props.field] || '0') + '')) * 24 * 60 * 60 * 1000);
-            // Formato DD/MM/YYYY
-            return  <div className="w-full text-right font-bold">
-                        { `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`}
-                    </div>;
-        } else {
-            // Etiqueta de fecha vacía o no válida
-            return  <div className="w-full text-right font-bold">
-                        { rowData[props.field] || '' }
-                    </div>;
-        }
-    };
+
     const rowOneContentDateTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
         // Si el campo es una fecha, lo convertimos a formato DD/MM/YYYY
         if (rowData[props.field] && (rowData[props.field] !== 'Puntos')) {
@@ -103,9 +82,8 @@ const AlumnadoCatalogo = () => {
     
     const columnContentValueIDTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
         return (
-            <div className="w-full text-right font-bold">
-                <Button
-                    label={rowData[props.field] || '0'}
+            <div className="w-full text-right font-bold">                <Button
+                    label={String(rowData[props.field] || '0')}
                     icon="pi pi-file-edit"
                     iconPos="right"
                     className="p-button-rounded"
@@ -116,6 +94,7 @@ const AlumnadoCatalogo = () => {
             </div>
         );
     };
+
     const columnContentValueMailTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
         if (rowData[props.field]) {
             return  <div>
@@ -138,71 +117,18 @@ const AlumnadoCatalogo = () => {
         return '';
     };
     
-    const renderModalContent = () => {
-        if (!selectedData) return null;
-        return (
-            <div className="grid grid-cols-2 gap-4">
-                {Object.entries(selectedData)
-                    .filter(([key]) => key !== 'BUSQUEDA')
-                    .map(([key, value]) => (
-                        <div key={key} className="mb-4">
-                            <div className="font-bold text-gray-700">{key}</div>
-                            <div className="mt-1 p-2 bg-gray-50 rounded">
-                                {typeof value === 'number' 
-                                    ? new Intl.NumberFormat('es-MX', {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2
-                                      }).format(value)
-                                    : value?.toString() || ''}
-                            </div>
-                        </div>
-                    ))}
-            </div>
-        );
-    };
-
     // Template para la columna de acciones
     const columnContentValueAccsTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
-        // Evitamos mostrar botones de acción para la primera fila
-        if (props.rowIndex === 0) {
-            // No mostramos botones de acción para la primera y segunda fila
-            return null;
-        } else {
-            return (
-                <div className="w-full flex justify-center gap-2">
-                    <Button 
-                        icon="pi pi-graduation-cap"
-                        className="p-button-rounded p-button-secondary"
-                        style={{ backgroundColor: 'black', fontWeight: 'bolder', color: 'lightgray' }}
-                        onClick={() => {
-                            setSelectedData(rowData);
-                            setShowModalBlack(true);
-                        }}
-                        tooltip="Ver detalles - Negro"
-                    />
-                    <Button 
-                        icon="pi pi-graduation-cap"
-                        className="p-button-rounded p-button-secondary"
-                        style={{ backgroundColor: 'green', fontWeight: 'bolder', color: 'lightgray' }}
-                        onClick={() => {
-                            setSelectedData(rowData);
-                            setShowModalGreen(true);
-                        }}
-                        tooltip="Ver detalles - Verde"
-                    />
-                    <Button 
-                        icon="pi pi-graduation-cap"
-                        className="p-button-rounded p-button-secondary"
-                        style={{ backgroundColor: 'purple', fontWeight: 'bolder', color: 'lightgray' }}
-                        onClick={() => {
-                            setSelectedData(rowData);
-                            setShowModalPurple(true);
-                        }}
-                        tooltip="Ver detalles - Morado"
-                    />
-                </div>
-            );
-        }
+        if (props.rowIndex === 0) return null;
+        return (
+            <StudentActionButtons
+                rowData={rowData}
+                onSelectData={(data, variant) => {
+                    setSelectedData(data);
+                    setActiveModal(variant);
+                }}
+            />
+        );
     };
 
     return (
@@ -231,38 +157,29 @@ const AlumnadoCatalogo = () => {
                 </DataTable>
             </div>
 
-            <Dialog 
-                header="Detalles (Negro)" 
-                visible={showModalBlack} 
-                onHide={() => setShowModalBlack(false)}
-                style={{ width: '90vw', maxWidth: '800px' }}
-                modal
-                className="p-fluid"
-            >
-                {renderModalContent()}
-            </Dialog>
+            <StudentDetailsModal
+                visible={activeModal === 'black'}
+                onHide={() => setActiveModal(null)}
+                dates={[...excelData].slice(0, 1)[0]}
+                data={selectedData}
+                variant="black"
+            />
 
-            <Dialog 
-                header="Detalles (Verde)" 
-                visible={showModalGreen} 
-                onHide={() => setShowModalGreen(false)}
-                style={{ width: '90vw', maxWidth: '800px' }}
-                modal
-                className="p-fluid"
-            >
-                {renderModalContent()}
-            </Dialog>
+            <StudentDetailsModal
+                visible={activeModal === 'green'}
+                onHide={() => setActiveModal(null)}
+                dates={[...excelData].slice(0, 1)[0]}
+                data={selectedData}
+                variant="green"
+            />
 
-            <Dialog 
-                header="Detalles (Morado)" 
-                visible={showModalPurple} 
-                onHide={() => setShowModalPurple(false)}
-                style={{ width: '90vw', maxWidth: '800px' }}
-                modal
-                className="p-fluid"
-            >
-                {renderModalContent()}
-            </Dialog>
+            <StudentDetailsModal
+                visible={activeModal === 'purple'}
+                onHide={() => setActiveModal(null)}
+                dates={[...excelData].slice(0, 1)[0]}
+                data={selectedData}
+                variant="purple"
+            />
         </Menu>
     );
 };
