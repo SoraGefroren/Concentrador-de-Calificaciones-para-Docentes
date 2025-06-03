@@ -21,8 +21,9 @@ const AlumnadoCatalogo = () => {
         'ID',
         'NOMBRE',
         'APELLIDO',
-        'CORREO.ELECTONICO',
+        // 'CORREO.ELECTONICO',
         'CORREO.ELECTONICO ',
+        // '"CORREO.ELECTONICO "',
         // 'ID2',
         'SUMA.PORCENTAJE.ACTIVIDADES',
         'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES',
@@ -37,22 +38,14 @@ const AlumnadoCatalogo = () => {
             // Obtenemos el índice de la fila actual
             const { rowIndex } = props;
             // // Para la primera fila
-            // if (rowIndex === 0) {
-            //     // Si el campo es una fecha, lo convertimos a formato DD/MM/YYYY
-            //     return rowZeroContentDateTemplate(rowData, { field: excelColumn, rowIndex });
-            // // Para la segunda fila
-            // } else
             if (rowIndex === 0) {
                 // Si el campo es un número, le damos formato
                 return rowOneContentDateTemplate(rowData, { field: excelColumn, rowIndex });
             // Todas las demás filas
             } else {
+                // Pintar columnas
                  if (['ID'].includes(excelColumn)) {
                     return columnContentValueIDTemplate(rowData, { field: excelColumn, rowIndex });
-                 } else if (['ID2'].includes(excelColumn)) {
-                    return  <div className="w-full text-right">
-                                { rowData[excelColumn] || '' }
-                            </div>;
                 } else if (['CORREO.ELECTONICO', 'CORREO.ELECTONICO ', '"CORREO.ELECTONICO "'].includes(excelColumn)) {
                     return columnContentValueMailTemplate(rowData, { field: excelColumn, rowIndex });
                 } else if (['NOMBRE', 'APELLIDO'].includes(excelColumn)) {
@@ -107,15 +100,19 @@ const AlumnadoCatalogo = () => {
                     </div>;
         }
     };
-
+    
     const columnContentValueIDTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
         return (
             <div className="w-full text-right font-bold">
-                <button 
+                <Button
+                    label={rowData[props.field] || '0'}
+                    icon="pi pi-file-edit"
+                    iconPos="right"
+                    className="p-button-rounded"
+                    style={{ fontWeight: 'bolder' }}
                     onClick={() => navigate(`/alumnado/formulario/${rowData[props.field]}`)}
-                    className="text-blue-600 hover:text-blue-800 transition-colors duration-200">
-                    {rowData[props.field] || 0}
-                </button>
+                    tooltip="Editar Alumno"
+                />
             </div>
         );
     };
@@ -166,16 +163,17 @@ const AlumnadoCatalogo = () => {
 
     // Template para la columna de acciones
     const columnContentValueAccsTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
-        if (props.rowIndex === 0 || props.rowIndex === 1) {
+        // Evitamos mostrar botones de acción para la primera fila
+        if (props.rowIndex === 0) {
             // No mostramos botones de acción para la primera y segunda fila
             return null;
         } else {
             return (
                 <div className="w-full flex justify-center gap-2">
                     <Button 
-                        icon="pi pi-circle-fill"
+                        icon="pi pi-graduation-cap"
                         className="p-button-rounded p-button-secondary"
-                        style={{ backgroundColor: 'black' }}
+                        style={{ backgroundColor: 'black', fontWeight: 'bolder', color: 'lightgray' }}
                         onClick={() => {
                             setSelectedData(rowData);
                             setShowModalBlack(true);
@@ -183,8 +181,9 @@ const AlumnadoCatalogo = () => {
                         tooltip="Ver detalles - Negro"
                     />
                     <Button 
-                        icon="pi pi-circle-fill"
-                        className="p-button-rounded p-button-success"
+                        icon="pi pi-graduation-cap"
+                        className="p-button-rounded p-button-secondary"
+                        style={{ backgroundColor: 'green', fontWeight: 'bolder', color: 'lightgray' }}
                         onClick={() => {
                             setSelectedData(rowData);
                             setShowModalGreen(true);
@@ -192,9 +191,9 @@ const AlumnadoCatalogo = () => {
                         tooltip="Ver detalles - Verde"
                     />
                     <Button 
-                        icon="pi pi-circle-fill"
-                        className="p-button-rounded"
-                        style={{ backgroundColor: 'purple' }}
+                        icon="pi pi-graduation-cap"
+                        className="p-button-rounded p-button-secondary"
+                        style={{ backgroundColor: 'purple', fontWeight: 'bolder', color: 'lightgray' }}
                         onClick={() => {
                             setSelectedData(rowData);
                             setShowModalPurple(true);
@@ -212,8 +211,9 @@ const AlumnadoCatalogo = () => {
                 <h3>Datos del archivo Excel</h3>
             </div>
             <div className="w-full overflow-x-auto">
-                <DataTable value={[...excelData].slice(1, excelData.length)}
-                           scrollable rowClassName={getRowClassName}
+                <DataTable scrollable
+                           rowClassName={getRowClassName}
+                           value={[...excelData].slice(1, excelData.length)}
                            tableStyle={{ minWidth: '100%', maxWidth: '100%' }}>
                     {excelData.length > 0 &&
                         columnsToShow.map((col, index) => (
