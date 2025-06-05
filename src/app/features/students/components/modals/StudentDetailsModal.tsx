@@ -19,19 +19,27 @@ const variantHeaders = {
 const firstSectionFields = ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
 const thirdSectionFields = ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION'];
 
-const formatDateValue = (value: string | number | null | undefined) => {
-    if (value && value !== 'Fecha') {
-        try {
-            // Excel cuenta desde 1 de enero de 1900, pero tiene un bug que considera 1900 como bisiesto
+const formatDateValue = (value: string | number | null | undefined): string => {
+    // Si el valor es nulo, undefined o una cadena vacía, se retorna una cadena vacía
+    if (!value || value === 'Fecha') return '';
+    // Tratar como número o string que representa un número
+    try {
+        // Si es un número o un string que representa un número, se asume formato Excel
+        if (!isNaN(Number(value))) {
             const excelEpoch = new Date(1899, 11, 30); // 30 de diciembre de 1899
-            const date = new Date(excelEpoch.getTime() + parseFloat((String(value) || '0') + '') * 24 * 60 * 60 * 1000);
-            // Formato DD/MM/YYYY
+            const date = new Date(excelEpoch.getTime() + Number(value) * 24 * 60 * 60 * 1000);
             return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
-        } catch {
-            return value;
         }
+        // Si es un string que parece una fecha como '27-Aug-21'
+        const parsedDate = new Date(value);
+        if (!isNaN(parsedDate.getTime())) {
+            return `${String(parsedDate.getDate()).padStart(2, '0')}/${String(parsedDate.getMonth() + 1).padStart(2, '0')}/${parsedDate.getFullYear()}`;
+        }
+        // Si no se puede parsear, se devuelve tal cual
+        return String(value);
+    } catch {
+        return String(value);
     }
-    return value || '';
 };
 
 const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentDetailsModalProps) => {
@@ -78,12 +86,6 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
             className="p-fluid"
         >
             <div className="space-y-8">
-                {/* Primera sección */}
-                <div className="border-b pb-4">
-                    <h3 className="text-lg font-semibold mb-4">Información General</h3>
-                    {renderSection(firstSectionFields)}
-                </div>
-
                 {/* Segunda sección - Tabla con fechas */}
                 <div className="border-b pb-4">
                     <h3 className="text-lg font-semibold mb-4">Detalle de Actividades</h3>
@@ -114,7 +116,6 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
                         ))}
                     </DataTable>
                 </div>
-
                 {/* Tercera sección */}
                 <div>
                     <h3 className="text-lg font-semibold mb-4">Resultados</h3>
