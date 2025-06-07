@@ -11,9 +11,18 @@ interface StudentDetailsModalProps {
 }
 
 const variantHeaders = {
-    black: 'Detalles (Negro)',
-    green: 'Detalles (Verde)',
-    purple: 'Detalles (Morado)'
+    black: {
+        title: 'Detalles (Negro)',
+        numColumns: 7
+    },
+    green: {
+        title: 'Detalles (Verde)',
+        numColumns: 8
+    },
+    purple: {
+        title: 'Detalles (Morado)',
+        numColumns: 7
+    },
 };
 
 const firstSectionFields = ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
@@ -78,7 +87,12 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
 
     return (
         <Dialog 
-            header={variantHeaders[variant]}
+            header={
+                data['ID'] + ' - ' +
+                variantHeaders[variant].title +
+                (data['NOMBRE']? ` ${data['NOMBRE']}` : '') +
+                (data['APELLIDO']? ` ${data['APELLIDO']}` : '')
+            }
             visible={visible} 
             onHide={onHide}
             style={{ width: '90vw', maxWidth: '1200px' }}

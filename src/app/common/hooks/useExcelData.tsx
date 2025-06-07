@@ -57,21 +57,23 @@ export const useExcelData = () => {
                 defval: '',
                 blankrows: false
             }) as (string | number)[][];
-            
             // Decodificar cada string en el array
             const decodedData = jsonData.map(row =>
                 row.map(cell => {
                     if (typeof cell === 'string') {
                         try {
-                            return decoder.decode(new TextEncoder().encode(cell));
+                            // Convierte la cadena mal interpretada a bytes
+                            const bytes = new Uint8Array([...cell].map(c => c.charCodeAt(0)));
+                            // Decodifica esos bytes como si fueran UTF-8
+                            return new TextDecoder('utf-8').decode(bytes);
                         } catch (e) {
+                            // Si falla la decodificación, retorna el valor original
                             return cell;
                         }
                     }
                     return cell;
                 })
             );
-            
             const processedData = processExcelData(decodedData);
             const updatedData = updateExcelData(processedData);
             setError(null);
@@ -114,15 +116,18 @@ export const useExcelData = () => {
                 row.map(cell => {
                     if (typeof cell === 'string') {
                         try {
-                            return decoder.decode(new TextEncoder().encode(cell));
+                            // Convierte la cadena mal interpretada a bytes
+                            const bytes = new Uint8Array([...cell].map(c => c.charCodeAt(0)));
+                            // Decodifica esos bytes como si fueran UTF-8
+                            return new TextDecoder('utf-8').decode(bytes);
                         } catch (e) {
+                            // Si falla la decodificación, retorna el valor original
                             return cell;
                         }
                     }
                     return cell;
                 })
             );
-            
             const processedData = processExcelData(decodedData);
             const updatedData = updateExcelData(processedData);
             setError(null);
