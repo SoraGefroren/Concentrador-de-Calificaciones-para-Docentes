@@ -72,12 +72,39 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
         </div>
     );
 
-    const middleSectionData = Object.entries(data)
+    // Calcular el rango de columnas según el variant
+    const getColumnRange = (variant: 'black' | 'green' | 'purple') => {
+        const blackColumns = variantHeaders.black.numColumns;
+        const greenColumns = variantHeaders.green.numColumns;
+        
+        switch (variant) {
+            case 'black':
+                return { start: 0, end: blackColumns - 1 };
+            case 'green':
+                return { start: blackColumns, end: blackColumns + greenColumns - 1 };
+            case 'purple':
+                return { 
+                    start: blackColumns + greenColumns, 
+                    end: blackColumns + greenColumns + variantHeaders.purple.numColumns - 1 
+                };
+            default:
+                return { start: 0, end: 0 };
+        }
+    };
+
+    const columnRange = getColumnRange(variant);
+
+    // Filtrar todas las columnas excluyendo las de las secciones primera y tercera
+    const allMiddleColumns = Object.entries(data)
         .filter(([key]) => !firstSectionFields.includes(key) && 
                           !thirdSectionFields.includes(key) && 
                           key !== 'BUSQUEDA' &&
                           key !== 'ID2' &&
-                          key !== 'Column 33')
+                          key !== 'Column 33');
+
+    // Filtrar las columnas según el rango del variant
+    const middleSectionData = allMiddleColumns
+        .slice(columnRange.start, columnRange.end + 1)
         .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {});
     
     const tableData = [
