@@ -41,21 +41,25 @@ const formatDateValue = (value: string | number | null | undefined): string => {
 const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentDetailsModalProps) => {
     const { columnConfig } = useExcelContext();
     
-    if (!data) return null;
-
-    // Usar configuración dinámica en lugar de valores estáticos
+    if (!data) return null;    // Usar configuración dinámica en lugar de valores estáticos
     const variantHeaders = {
         black: {
             title: 'Detalles (Negro)',
-            numColumns: columnConfig.black
+            numColumns: columnConfig.black.numColumns,
+            rangeColumns: columnConfig.black.rangeColumns,
+            color: columnConfig.black.color
         },
         green: {
             title: 'Detalles (Verde)',
-            numColumns: columnConfig.green
+            numColumns: columnConfig.green.numColumns,
+            rangeColumns: columnConfig.green.rangeColumns,
+            color: columnConfig.green.color
         },
         purple: {
             title: 'Detalles (Morado)',
-            numColumns: columnConfig.purple
+            numColumns: columnConfig.purple.numColumns,
+            rangeColumns: columnConfig.purple.rangeColumns,
+            color: columnConfig.purple.color
         },
     };
 

@@ -6,9 +6,21 @@ export interface ExcelData {
 }
 
 export interface ColumnConfig {
-    black: number;
-    green: number;
-    purple: number;
+    black: {
+        numColumns: number;
+        rangeColumns: string;
+        color: string;
+    };
+    green: {
+        numColumns: number;
+        rangeColumns: string;
+        color: string;
+    };
+    purple: {
+        numColumns: number;
+        rangeColumns: string;
+        color: string;
+    };
 }
 
 export const useExcelData = () => {
@@ -21,27 +33,37 @@ export const useExcelData = () => {
     // Configuración inicial de columnas
     const initialColumnConfig = (): ColumnConfig => {
         const savedConfig = localStorage.getItem('columnConfig');
-        return savedConfig ? JSON.parse(savedConfig) : { black: 7, green: 8, purple: 7 };
+        return savedConfig ? JSON.parse(savedConfig) : { 
+            black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
+            green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
+            purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
+        };
     };
 
     // Variables de estado
     const [excelData, setExcelData] = useState<ExcelData[]>(initialData());
     const [columnConfig, setColumnConfig] = useState<ColumnConfig>(initialColumnConfig());
     const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string | null>(null);    // Función para procesar los datos del Excel
-    const processExcelData = (jsonData: any[][]): ExcelData[] => {
+    const [error, setError] = useState<string | null>(null);
+
+    // Función para procesar los datos del Excel
+    const processExcelData = (jsonData: (string | number)[][]): ExcelData[] => {
         const headers = jsonData[0] || [];
         return jsonData.slice(1).map((row) =>
             row.reduce((obj: ExcelData, value, index) => {
-                obj[headers[index] || `Column ${index + 1}`] = value;
+                obj[headers[index] ?? `Column ${index + 1}`] = value;
                 return obj;
             }, {})
         );
     };
 
     // Función para procesar la configuración de la cuarta hoja
-    const processColumnConfig = (configData: any[][]): ColumnConfig => {
-        const defaultConfig: ColumnConfig = { black: 7, green: 8, purple: 7 };
+    const processColumnConfig = (configData: (string | number)[][]): ColumnConfig => {
+        const defaultConfig: ColumnConfig = { 
+            black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
+            green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
+            purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
+        };
         
         if (!configData || configData.length === 0) {
             return defaultConfig;
@@ -50,26 +72,41 @@ export const useExcelData = () => {
         const config: ColumnConfig = { ...defaultConfig };
 
         configData.forEach(row => {
-            if (row && row.length >= 3) {
-                const [periodo, numColumns, color] = row;
-                const columns = parseInt(numColumns?.toString() || '0', 10);
+            if (row && row.length >= 5) {
+                // Formato: PRIMER.PERIODO|negro|#000000ff|F1:L1|7
+                const [periodo, colorName, hexColor, rangeColumns, numColumns] = row;
+                const columns = parseInt(numColumns?.toString() ?? '0', 10);
                 
                 if (isNaN(columns)) return;
 
-                const colorLower = color?.toString().toLowerCase();
+                const colorNameLower = colorName?.toString().toLowerCase();
                 
-                if (periodo?.toString().includes('PRIMER') && colorLower === 'negro') {
-                    config.black = columns;
-                } else if (periodo?.toString().includes('SEGUNDO') && colorLower === 'verde') {
-                    config.green = columns;
-                } else if (periodo?.toString().includes('TERCER') && colorLower === 'morado') {
-                    config.purple = columns;
+                if (periodo?.toString().includes('PRIMER') && colorNameLower === 'negro') {
+                    config.black = {
+                        numColumns: columns,
+                        rangeColumns: rangeColumns?.toString() ?? 'F1:L1',
+                        color: hexColor?.toString() ?? '#000000ff'
+                    };
+                } else if (periodo?.toString().includes('SEGUNDO') && colorNameLower === 'verde') {
+                    config.green = {
+                        numColumns: columns,
+                        rangeColumns: rangeColumns?.toString() ?? 'M1:T1',
+                        color: hexColor?.toString() ?? '#92d050ff'
+                    };
+                } else if (periodo?.toString().includes('TERCER') && colorNameLower === 'morado') {
+                    config.purple = {
+                        numColumns: columns,
+                        rangeColumns: rangeColumns?.toString() ?? 'U1:AA1',
+                        color: hexColor?.toString() ?? '#7030a0ff'
+                    };
                 }
             }
         });
 
         return config;
-    };    // Función para actualizar los datos
+    };
+
+    // Función para actualizar los datos
     const updateExcelData = (newData: ExcelData[]) => {
         setExcelData(newData);
         localStorage.setItem('excelData', JSON.stringify(newData));
@@ -82,7 +119,8 @@ export const useExcelData = () => {
         localStorage.setItem('columnConfig', JSON.stringify(newConfig));
         return newConfig;
     };
-      const loadExcelFromPath = async (filePath: string): Promise<ExcelData[]> => {
+
+    const loadExcelFromPath = async (filePath: string): Promise<ExcelData[]> => {
         try {
             setLoading(true);
             const response = await fetch(filePath);
@@ -139,10 +177,18 @@ export const useExcelData = () => {
                     updateColumnConfig(columnConfig);
                 } catch (configError) {
                     console.warn('No se pudo leer la configuración de la cuarta hoja, usando valores por defecto');
-                    updateColumnConfig({ black: 7, green: 8, purple: 7 });
+                    updateColumnConfig({ 
+                        black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
+                        green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
+                        purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
+                    });
                 }
             } else {
-                updateColumnConfig({ black: 7, green: 8, purple: 7 });
+                updateColumnConfig({ 
+                    black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
+                    green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
+                    purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
+                });
             }
             
             setError(null);
@@ -157,6 +203,7 @@ export const useExcelData = () => {
             setLoading(false);
         }
     };
+
     const loadExcelFromFile = async (file: File): Promise<ExcelData[]> => {
         try {
             setLoading(true);
@@ -213,10 +260,18 @@ export const useExcelData = () => {
                     updateColumnConfig(columnConfig);
                 } catch (configError) {
                     console.warn('No se pudo leer la configuración de la cuarta hoja, usando valores por defecto');
-                    updateColumnConfig({ black: 7, green: 8, purple: 7 });
+                    updateColumnConfig({ 
+                        black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
+                        green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
+                        purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
+                    });
                 }
             } else {
-                updateColumnConfig({ black: 7, green: 8, purple: 7 });
+                updateColumnConfig({ 
+                    black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
+                    green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
+                    purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
+                });
             }
             
             setError(null);
@@ -230,7 +285,9 @@ export const useExcelData = () => {
         } finally {
             setLoading(false);
         }
-    };    return {
+    };
+
+    return {
         excelData,
         columnConfig,
         loading,
