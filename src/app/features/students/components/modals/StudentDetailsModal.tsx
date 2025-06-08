@@ -2,28 +2,15 @@ import { Dialog } from 'primereact/dialog';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import type { ExcelData } from '../../../../common/hooks/useExcelData';
+import { useExcelContext } from '../../../../common/contexts/ExcelContext';
 
 interface StudentDetailsModalProps {
     visible: boolean;
     onHide: () => void;
+    dates?: ExcelData;
     data: ExcelData | null;
     variant: 'black' | 'green' | 'purple';
 }
-
-const variantHeaders = {
-    black: {
-        title: 'Detalles (Negro)',
-        numColumns: 7
-    },
-    green: {
-        title: 'Detalles (Verde)',
-        numColumns: 8
-    },
-    purple: {
-        title: 'Detalles (Morado)',
-        numColumns: 7
-    },
-};
 
 const firstSectionFields = ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
 const thirdSectionFields = ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION'];
@@ -52,20 +39,37 @@ const formatDateValue = (value: string | number | null | undefined): string => {
 };
 
 const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentDetailsModalProps) => {
+    const { columnConfig } = useExcelContext();
+    
     if (!data) return null;
+
+    // Usar configuración dinámica en lugar de valores estáticos
+    const variantHeaders = {
+        black: {
+            title: 'Detalles (Negro)',
+            numColumns: columnConfig.black
+        },
+        green: {
+            title: 'Detalles (Verde)',
+            numColumns: columnConfig.green
+        },
+        purple: {
+            title: 'Detalles (Morado)',
+            numColumns: columnConfig.purple
+        },
+    };
 
     const renderSection = (fields: string[]) => (
         <div className="grid grid-cols-2 gap-4 mb-6">
             {fields.map(key => (
                 <div key={key} className="col-span-1">
                     <div className="font-bold text-gray-700">{key}</div>
-                    <div className="mt-1 p-2 bg-gray-50 rounded">
-                        {typeof data[key] === 'number' 
+                    <div className="mt-1 p-2 bg-gray-50 rounded">                        {typeof data[key] === 'number' 
                             ? new Intl.NumberFormat('es-MX', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2
                               }).format(data[key])
-                            : data[key]?.toString() || ''}
+                            : data[key]?.toString() ?? ''}
                     </div>
                 </div>
             ))}
@@ -149,8 +153,7 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
                                                 ? new Intl.NumberFormat('es-MX', {
                                                     minimumFractionDigits: 2,
                                                     maximumFractionDigits: 2
-                                                  }).format(rowData[key])
-                                                : rowData[key]?.toString() || ''}
+                                                  }).format(rowData[key])                                                : rowData[key]?.toString() ?? ''}
                                     </div>
                                 )}
                             />
