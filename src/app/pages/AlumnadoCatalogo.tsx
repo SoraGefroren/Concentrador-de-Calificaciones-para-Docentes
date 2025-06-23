@@ -5,17 +5,17 @@ import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
-import { useState } from 'react';
+import { Toast } from 'primereact/toast';
+import { useState, useRef } from 'react';
 import StudentDetailsModal from '../features/students/components/modals/StudentDetailsModal';
 import StudentActionButtons from '../features/students/components/modals/StudentActionButtons';
 
 const AlumnadoCatalogo = () => {
     const { excelData } = useExcelContext();
     const navigate = useNavigate();
+    const toast = useRef<Toast>(null);
     const [selectedData, setSelectedData] = useState<ExcelData | null>(null);
-    const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);
-
-    // Lista de columnas que queremos mostrar
+    const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);    // Lista de columnas que queremos mostrar
     const columnsToShow = [
         'ID',
         'NOMBRE',
@@ -27,6 +27,26 @@ const AlumnadoCatalogo = () => {
         'TOTAL.ALCANZADO',
         'CALIFICACION'
     ];
+
+    // Función para copiar texto al portapapeles
+    const copyToClipboard = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            toast.current?.show({
+                severity: 'success',
+                summary: 'Copiado',
+                detail: 'Correo electrónico copiado al portapapeles',
+                life: 3000
+            });
+        } catch (err) {
+            toast.current?.show({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'No se pudo copiar al portapapeles',
+                life: 3000
+            });
+        }
+    };
 
     const chooseBodyTemplate = (excelColumn: string) => {
         // Retornamos una función que recibe el rowData y rowIndex
@@ -94,27 +114,67 @@ const AlumnadoCatalogo = () => {
             </div>
         );
     };
-
+    
     const columnContentValueMailTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
         if (rowData[props.field]) {
-            return  <div>
-                        <a href={`mailto:${rowData[props.field]}`}
-                            className="text-blue-600 underline hover:text-blue-800 transition-colors duration-200">
-                            { rowData[props.field] }
-                        </a>
-                    </div>;
+            const email = String(rowData[props.field]);
+            return (
+                <div className="p-inputgroup w-100" style={{ maxWidth: '280px' }}>
+                    <Button
+                        label={email}
+                        className="p-button-text"
+                        style={{ 
+                            color: '#2563eb',
+                            textDecoration: 'underline',
+                            justifyContent: 'flex-start',
+                            borderRadius: '6px 0 0 6px',
+                            border: '1px solid #dee2e6',
+                            borderRight: 'none',
+                            backgroundColor: '#ffffff',
+                            padding: '0.5rem 0.75rem',
+                            fontSize: '0.875rem',
+                            textAlign: 'left',
+                            minWidth: '0',
+                            flex: '1'
+                        }}
+                        onClick={() => window.open(`mailto:${email}`, '_blank')}
+                        tooltip="Enviar correo electrónico"
+                    />
+                    <Button
+                        icon="pi pi-copy"
+                        className="p-button-outlined"
+                        style={{
+                            borderRadius: '0 6px 6px 0',
+                            border: '1px solid #dee2e6',
+                            backgroundColor: '#f8f9fa',
+                            color: '#6c757d',
+                            padding: '0.5rem',
+                            minWidth: '2.5rem'
+                        }}
+                        onClick={() => copyToClipboard(email)}
+                        tooltip="Copiar correo electrónico"
+                    />
+                </div>
+            );
         } else {
             return null;
         }
     };
-
+    
     const getRowClassName = (data: ExcelData) => {
-        // Obtenemos el índice de la fila actual
-        const rowIndex = excelData.indexOf(data);
-        if (rowIndex === 0) return 'bg-blue-100 font-bold'; // Primera fila
-        if (rowIndex === 1) return 'bg-blue-100 font-semibold'; // Segunda fila
-        // Resto de las filas
-        return '';
+        // Obtenemos el índice de la fila actual en los datos originales
+        const originalRowIndex = excelData.indexOf(data);
+        // La fila 0 es especial, mantener su estilo original
+        if (originalRowIndex === 0) {
+            return 'bg-blue-500 text-white font-bold special-row';
+        }
+        // Para las demás filas, aplicar colores intercalados basándose en el ID o posición
+        // Usamos el originalRowIndex para determinar el color
+        if ((originalRowIndex - 1) % 2 === 0) {
+            return 'bg-blue-50 hover:bg-blue-100 transition-colors duration-200'; // Azul suave para filas pares
+        } else {
+            return 'bg-white hover:bg-blue-50 transition-colors duration-200'; // Blanco para filas impares
+        }
     };
     
     // Template para la columna de acciones
@@ -130,20 +190,57 @@ const AlumnadoCatalogo = () => {
             />
         );
     };
-
+    
     return (
         <Menu>
+            <Toast ref={toast} />
             <div className="mb-2">
                 <h3>Datos del archivo Excel</h3>
             </div>
             <div className="w-full overflow-x-auto">
-                <DataTable scrollable
-                           rowClassName={getRowClassName}
-                           value={[...excelData].slice(1, excelData.length)}
-                           tableStyle={{ minWidth: '100%', maxWidth: '100%' }}>
+                <style>
+                    {`
+                        .custom-table .p-datatable-thead > tr > th {
+                            background-color: #374151 !important; /* bg-gray-800 - mismo color que el menú */
+                            color: white !important;
+                            font-weight: 600 !important;
+                            border: 1px solid #4b5563 !important;
+                            padding: 0.75rem !important;
+                            text-align: center !important;
+                        }
+                        .custom-table {
+                            border-radius: 0.5rem !important;
+                            overflow: hidden !important;
+                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+                        }
+                        .custom-table .p-datatable-tbody > tr > td {
+                            border: 1px solid #e5e7eb !important;
+                            padding: 0.75rem !important;
+                        }
+                        .custom-table .p-datatable-tbody > tr.special-row {
+                            background-color: #3b82f6 !important; /* bg-blue-500 - azul más fuerte */
+                            color: white !important; /* Texto blanco para contraste */
+                        }
+                        .custom-table .p-datatable-tbody > tr.special-row > td {
+                            border: none !important; /* Sin bordes para la fila especial */
+                            border-top: 1px solid #3b82f6 !important; /* Solo borde superior del mismo color */
+                            border-bottom: 1px solid #3b82f6 !important; /* Solo borde inferior del mismo color */
+                        }
+                        .custom-table .p-datatable-tbody > tr.special-row:hover {
+                            background-color: #2563eb !important; /* bg-blue-600 - azul aún más fuerte en hover */
+                        }
+                    `}
+                </style>
+                <DataTable 
+                    scrollable
+                    rowClassName={getRowClassName}
+                    value={[...excelData].slice(1, excelData.length)}
+                    tableStyle={{ minWidth: '100%', maxWidth: '100%' }}
+                    className="custom-table"
+                >
                     {excelData.length > 0 &&
                         columnsToShow.map((col, index) => (
-                            <Column key={index}
+                            <Column key={`${col}-${index}`}
                                     field={col} 
                                     header={col}
                                     body={chooseBodyTemplate(col)} />

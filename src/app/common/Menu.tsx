@@ -2,12 +2,13 @@ import React from 'react'
 
 const Menu = ({ children, showLateralMenu = true, showControlsMenu = true }) => {
     const [navbarOpen, setNavbarOpen] = React.useState(false);
+    const [lateralMenuVisible, setLateralMenuVisible] = React.useState(showLateralMenu);
     return (
         <main>
             <div className="flex">
                 {/* Menú lateral */}
                 <div className={`w-0 ${
-                        showLateralMenu ? 'sm:w-48' : 'hidden'
+                        lateralMenuVisible ? 'sm:w-48' : 'hidden'
                      }`}>
                     <nav className="fixed w-48 py-4 h-screen bg-gray-800 text-white flex flex-col">
                         <h2 className="text-2xl font-bold px-4 py-2 text-center">
@@ -80,11 +81,13 @@ const Menu = ({ children, showLateralMenu = true, showControlsMenu = true }) => 
                 </div>
                 {/* Contenido principal */}
                 <div className="flex-1 bg-white overflow-y-auto">
-                    <div className="flex w-full py-4 bg-gray-800 text-white pl-4 sm:pl-0 pr-4">
-                        <div className={`flex flex justify-center items-center ${
+                    <div className="flex w-full py-4 bg-gray-800 text-white pl-4 sm:pl-0 pr-4">                        <div className={`flex flex justify-center items-center ${
                                 showControlsMenu ? '' : 'hidden'
                              }`}>
-                            <button className='hidden sm:block group'>
+                            <button 
+                                className={`group ${lateralMenuVisible ? 'hidden sm:block' : 'hidden'}`}
+                                onClick={() => setLateralMenuVisible(false)}
+                            >
                                 <svg xmlns="http://www.w3.org/2000/svg"
                                     className="group-hover:stroke-white icon icon-tabler icon-tabler-layout-sidebar-left-collapse"
                                     width="44" height="44" viewBox="0 0 24 24" strokeWidth="1.5"
@@ -95,7 +98,10 @@ const Menu = ({ children, showLateralMenu = true, showControlsMenu = true }) => 
                                     <path d="M15 10l-2 2l2 2" />
                                 </svg>
                             </button>
-                            <button className='hidden sm:block group'>
+                            <button 
+                                className={`group ${!lateralMenuVisible ? 'hidden sm:block' : 'hidden'}`}
+                                onClick={() => setLateralMenuVisible(true)}
+                            >
                                 <svg xmlns="http://www.w3.org/2000/svg"
                                     className="group-hover:stroke-white icon icon-tabler icon-tabler-layout-sidebar-left-expand"
                                     width="44" height="44" viewBox="0 0 24 24" strokeWidth="1.5"
