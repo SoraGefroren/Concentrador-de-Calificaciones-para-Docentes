@@ -36,12 +36,34 @@ const AlumnadoCatalogo = () => {
             return specialCases[columnName];
         }
 
+        // Detectar y formatear fechas al final del texto
+        // Patrón: texto-dd-mmm-yy (ejemplo: "Conceptos Basicos Probabilidad-05-nov-21")
+        const datePattern = /^(.+)-(\d{1,2})-([a-z]{3})-(\d{2})$/i;
+        const dateMatch = columnName.match(datePattern);
+        
+        if (dateMatch) {
+            const [, textPart, day, month, year] = dateMatch;
+            // Formatear la parte del texto (reemplazar puntos por espacios y capitalizar)
+            const formattedText = textPart
+                .split('.')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+            
+            // Formatear la fecha: dd/mmm/yy
+            const formattedDate = `${day}/${month}/${year}`;
+            
+            return `${formattedText.replace('-', ' ').replace('-', ' ').replace('  ', ' ')} ${formattedDate}`;
+        }
+
         // Formateo general para otros casos
         return columnName
             .split('.') // Dividir por puntos
             .map(word => word.toLowerCase()) // Convertir a minúsculas
             .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalizar primera letra
-            .join(' '); // Unir con espacios
+            .join(' ')
+            .replace('-', ' ')
+            .replace('-', ' ')
+            .replace('  ', ' '); // Unir con espacios
     };
 
     // Lista de columnas que queremos mostrar

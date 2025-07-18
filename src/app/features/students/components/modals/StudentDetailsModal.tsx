@@ -15,6 +15,55 @@ interface StudentDetailsModalProps {
 const firstSectionFields = ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
 const thirdSectionFields = ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION'];
 
+// Función para formatear los headers de las columnas (igual que en AlumnadoCatalogo)
+const formatColumnHeader = (columnName: string): string => {
+    // Casos especiales para ciertos campos
+    const specialCases: { [key: string]: string } = {
+        'ID': 'ID',
+        'CORREO.ELECTONICO ': 'Correo Electrónico',
+        'CORREO.ELECTONICO': 'Correo Electrónico',
+        'SUMA.PORCENTAJE.ACTIVIDADES': 'Suma % Actividades',
+        'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES': 'Total Alcanzado % Actividades',
+        'PARTICIPACIÓN': 'Participación',
+        'TOTAL.ALCANZADO': 'Total Alcanzado',
+        'CALIFICACION': 'Calificación'
+    };
+
+    // Si hay un caso especial definido, usarlo
+    if (specialCases[columnName]) {
+        return specialCases[columnName];
+    }
+
+    // Detectar y formatear fechas al final del texto
+    // Patrón: texto-dd-mmm-yy (ejemplo: "Conceptos Basicos Probabilidad-05-nov-21")
+    const datePattern = /^(.+)-(\d{1,2})-([a-z]{3})-(\d{2})$/i;
+    const dateMatch = columnName.match(datePattern);
+    
+    if (dateMatch) {
+        const [, textPart, day, month, year] = dateMatch;
+        // Formatear la parte del texto (reemplazar puntos por espacios y capitalizar)
+        const formattedText = textPart
+            .split('.')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+        
+        // Formatear la fecha: dd/mmm/yy
+        const formattedDate = `${day}/${month}/${year}`;
+        
+        return `${formattedText.replace('-', ' ').replace('-', ' ').replace('  ', ' ')} ${formattedDate}`;
+    }
+
+    // Formateo general para otros casos
+    return columnName
+        .split('.') // Dividir por puntos
+        .map(word => word.toLowerCase()) // Convertir a minúsculas
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalizar primera letra
+        .join(' ')
+        .replace('-', ' ')
+        .replace('-', ' ')
+        .replace('  ', ' '); // Unir con espacios
+};
+
 const formatDateValue = (value: string | number | null | undefined): string => {
     // Si el valor es nulo, undefined o una cadena vacía, se retorna una cadena vacía
     if (!value || value === 'Fecha') return '';
@@ -67,8 +116,9 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
         <div className="grid grid-cols-2 gap-4 mb-6">
             {fields.map(key => (
                 <div key={key} className="col-span-1">
-                    <div className="font-bold text-gray-700">{key}</div>
-                    <div className="mt-1 p-2 bg-gray-50 rounded">                        {typeof data[key] === 'number' 
+                    <div className="font-bold text-gray-700">{formatColumnHeader(key)}</div>
+                    <div className="mt-1 p-2">
+                        {typeof data[key] === 'number' 
                             ? new Intl.NumberFormat('es-MX', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2
@@ -120,23 +170,70 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
         { name: 'Resultados', ...middleSectionData }
     ];
 
+    // Obtener el color de fondo según la variante
+    const getHeaderColor = () => {
+        switch (variant) {
+            case 'black':
+                return '#374151';
+            case 'green':
+                return '#059669';
+            case 'purple':
+                return '#7c3aed';
+            default:
+                return '#374151';
+        }
+    };
+
+    const headerColor = getHeaderColor();
+
     return (
-        <Dialog 
-            header={
-                data['ID'] + ' - ' +
-                variantHeaders[variant].title +
-                (data['NOMBRE']? ` ${data['NOMBRE']}` : '') +
-                (data['APELLIDO']? ` ${data['APELLIDO']}` : '')
-            }
-            visible={visible} 
-            onHide={onHide}
-            style={{ width: '90vw', maxWidth: '1200px' }}
-            modal
-            className="p-fluid"
-        >
+        <>
+            <style>
+                {`
+                    .p-datatable-sm .p-datatable-thead > tr > th {
+                        background-color: #374151 !important; /* bg-gray-800 - mismo color que el menú */
+                        color: white !important;
+                        font-weight: 600 !important;
+                        border: 1px solid #4b5563 !important;
+                        padding: 0.75rem !important;
+                        text-align: center !important;
+                    }
+                    .custom-dialog-header-${variant} .p-dialog-header {
+                        background-color: ${headerColor} !important;
+                        color: white !important;
+                        border-radius: 6px 6px 0 0 !important;
+                    }
+                    .custom-dialog-header-${variant} .p-dialog-header .p-dialog-title {
+                        color: white !important;
+                        font-weight: bold !important;
+                    }
+                    .custom-dialog-header-${variant} .p-dialog-header .p-dialog-header-icons button {
+                        color: white !important;
+                        background-color: transparent !important;
+                        border: 1px solid rgba(255, 255, 255, 0.3) !important;
+                    }
+                    .custom-dialog-header-${variant} .p-dialog-header .p-dialog-header-icons button:hover {
+                        background-color: rgba(255, 255, 255, 0.1) !important;
+                        border-color: rgba(255, 255, 255, 0.5) !important;
+                    }
+                `}
+            </style>
+            <Dialog 
+                header={
+                    data['ID'] + ' - ' +
+                    variantHeaders[variant].title +
+                    (data['NOMBRE']? ` ${data['NOMBRE']}` : '') +
+                    (data['APELLIDO']? ` ${data['APELLIDO']}` : '')
+                }
+                visible={visible} 
+                onHide={onHide}
+                style={{ width: '90vw', maxWidth: '1200px' }}
+                modal
+                className={`p-fluid custom-dialog-header-${variant}`}
+            >
             <div className="space-y-8">
                 {/* Segunda sección - Tabla con fechas */}
-                <div className="border-b pb-4">
+                <div className="border-b pt-4">
                     <h3 className="text-lg font-semibold mb-4">Detalle de Actividades</h3>
                     <DataTable value={tableData} className="p-datatable-sm">
                         <Column 
@@ -148,7 +245,7 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
                             <Column
                                 key={key}
                                 field={key}
-                                header={key}
+                                header={formatColumnHeader(key)}
                                 body={(rowData) => (
                                     <div className="text-right font-bold">
                                         {rowData.name === 'Fecha' 
@@ -160,6 +257,7 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
                                                   }).format(rowData[key])                                                : rowData[key]?.toString() ?? ''}
                                     </div>
                                 )}
+                                style={{ textAlign: 'center' }}
                             />
                         ))}
                     </DataTable>
@@ -171,6 +269,7 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
                 </div>
             </div>
         </Dialog>
+        </>
     );
 };
 
