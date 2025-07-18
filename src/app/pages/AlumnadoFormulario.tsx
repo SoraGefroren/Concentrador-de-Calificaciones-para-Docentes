@@ -108,7 +108,7 @@ const AlumnadoFormulario = () => {
                     mode="decimal"
                     minFractionDigits={2}
                     maxFractionDigits={2}
-                    className="w-full"
+                    className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                     locale="es-MX"
                 />
             );
@@ -117,22 +117,30 @@ const AlumnadoFormulario = () => {
                 <InputText
                     value={value?.toString() ?? ''}
                     onChange={(e) => handleInputChange(field, e.target.value)}
-                    className="w-full"
+                    className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                 />
             );
         }
     };
 
-    const renderReadOnlyField = (_field: string, value: FormFieldValue) => (
-        <div className="p-2 bg-gray-100 rounded border">
-            {typeof value === 'number' 
-                ? new Intl.NumberFormat('es-MX', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                  }).format(value)
-                : value?.toString() ?? ''}
-        </div>
-    );
+    const renderReadOnlyField = (field: string, value: FormFieldValue) => {
+        // Caso especial: hacer editable el campo "PARTICIPACIÓN"
+        if (field === 'PARTICIPACIÓN') {
+            return renderEditableInput(field, value);
+        }
+        
+        // Para todos los demás campos, mantener como solo lectura
+        return (
+            <div className="p-2">
+                {typeof value === 'number' 
+                    ? new Intl.NumberFormat('es-MX', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      }).format(value)
+                    : value?.toString() ?? ''}
+            </div>
+        );
+    };
 
     const renderColorGroup = (group: 'black' | 'green' | 'purple', title: string, bgColor: string) => {
         const columns = getColumnsByGroup(group);
@@ -150,7 +158,7 @@ const AlumnadoFormulario = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {columns.map(([key, value]) => (
                         <div key={key} className="mb-4">
-                            <label className="block text-gray-700 text-sm font-bold mb-2">
+                            <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
                                 {key}
                             </label>
                             {renderEditableInput(key, value)}
@@ -174,13 +182,13 @@ const AlumnadoFormulario = () => {
                             label="Guardar Cambios"
                             icon="pi pi-save"
                             onClick={handleSave}
-                            className="p-button-success" 
+                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
                         />
                         <Button 
                             label="Volver al catálogo" 
                             icon="pi pi-arrow-left"
                             onClick={() => navigate('/alumnado/catalogo')}
-                            className="p-button-secondary" 
+                            className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
                         />
                     </div>
                 </div>
@@ -191,7 +199,7 @@ const AlumnadoFormulario = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {firstSectionFields.map(field => (
                             <div key={field} className="mb-4">
-                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
                                     {field}
                                 </label>
                                 {renderEditableInput(field, formData[field])}
@@ -214,7 +222,7 @@ const AlumnadoFormulario = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {thirdSectionFields.map(field => (
                             <div key={field} className="mb-4">
-                                <label className="block text-gray-700 text-sm font-bold mb-2">
+                                <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
                                     {field}
                                 </label>
                                 {renderReadOnlyField(field, formData[field])}
@@ -222,6 +230,24 @@ const AlumnadoFormulario = () => {
                         ))}
                     </div>
                 </Card>
+
+                
+                <div className="flex justify-end items-center mb-6">
+                    <div className="flex gap-3 pt-3">
+                        <Button 
+                            label="Guardar Cambios"
+                            icon="pi pi-save"
+                            onClick={handleSave}
+                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2" 
+                        />
+                        <Button 
+                            label="Volver al catálogo" 
+                            icon="pi pi-arrow-left"
+                            onClick={() => navigate('/alumnado/catalogo')}
+                            className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
+                        />
+                    </div>
+                </div>
             </div>
         </Menu>
     );

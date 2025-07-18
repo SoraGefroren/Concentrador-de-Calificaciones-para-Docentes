@@ -106,7 +106,7 @@ const AlumnadoCatalogo = () => {
                     label={String(rowData[props.field] || '0')}
                     icon="pi pi-file-edit"
                     iconPos="right"
-                    className="p-button-rounded"
+                    className="p-button-rounded text-white bg-blue-500 hover:bg-blue-800 p-2"
                     style={{ fontWeight: 'bolder' }}
                     onClick={() => navigate(`/alumnado/formulario/${rowData[props.field]}`)}
                     tooltip="Editar Alumno"
@@ -171,9 +171,9 @@ const AlumnadoCatalogo = () => {
         // Para las demás filas, aplicar colores intercalados basándose en el ID o posición
         // Usamos el originalRowIndex para determinar el color
         if ((originalRowIndex - 1) % 2 === 0) {
-            return 'bg-blue-50 hover:bg-blue-100 transition-colors duration-200'; // Azul suave para filas pares
+            return 'bg-[#99b1d5] hover:bg-[#7789a5] hover:text-white transition-colors duration-200'; // Azul suave para filas pares
         } else {
-            return 'bg-white hover:bg-blue-50 transition-colors duration-200'; // Blanco para filas impares
+            return 'bg-white hover:bg-[#7789a5] hover:text-white transition-colors duration-200'; // Blanco para filas impares
         }
     };
     
@@ -194,8 +194,10 @@ const AlumnadoCatalogo = () => {
     return (
         <Menu>
             <Toast ref={toast} />
-            <div className="mb-2">
-                <h3>Datos del archivo Excel</h3>
+            <div className="flex justify-start items-center mb-6">
+                <h2 className="text-3xl font-bold text-gray-800 w-fit">
+                    Catálogo de Alumnos
+                </h2>
             </div>
             <div className="w-full overflow-x-auto">
                 <style>
