@@ -15,7 +15,36 @@ const AlumnadoCatalogo = () => {
     const navigate = useNavigate();
     const toast = useRef<Toast>(null);
     const [selectedData, setSelectedData] = useState<ExcelData | null>(null);
-    const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);    // Lista de columnas que queremos mostrar
+    const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);
+
+    // Función para formatear los headers de las columnas
+    const formatColumnHeader = (columnName: string): string => {
+        // Casos especiales para ciertos campos
+        const specialCases: { [key: string]: string } = {
+            'ID': 'ID',
+            'CORREO.ELECTONICO ': 'Correo Electrónico',
+            'CORREO.ELECTONICO': 'Correo Electrónico',
+            'SUMA.PORCENTAJE.ACTIVIDADES': 'Suma % Actividades',
+            'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES': 'Total Alcanzado % Actividades',
+            'PARTICIPACIÓN': 'Participación',
+            'TOTAL.ALCANZADO': 'Total Alcanzado',
+            'CALIFICACION': 'Calificación'
+        };
+
+        // Si hay un caso especial definido, usarlo
+        if (specialCases[columnName]) {
+            return specialCases[columnName];
+        }
+
+        // Formateo general para otros casos
+        return columnName
+            .split('.') // Dividir por puntos
+            .map(word => word.toLowerCase()) // Convertir a minúsculas
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalizar primera letra
+            .join(' '); // Unir con espacios
+    };
+
+    // Lista de columnas que queremos mostrar
     const columnsToShow = [
         'ID',
         'NOMBRE',
@@ -244,14 +273,14 @@ const AlumnadoCatalogo = () => {
                         columnsToShow.map((col, index) => (
                             <Column key={`${col}-${index}`}
                                     field={col} 
-                                    header={col}
+                                    header={formatColumnHeader(col)}
                                     body={chooseBodyTemplate(col)} />
                         ))
                     }
                     <Column 
-                        header="ACCIONES"
+                        header="Acciones"
                         body={columnContentValueAccsTemplate}
-                        style={{ width: '12rem', textAlign: 'center' }}
+                        style={{ width: '10rem', textAlign: 'center' }}
                     />
                 </DataTable>
             </div>
