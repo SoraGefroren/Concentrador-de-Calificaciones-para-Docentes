@@ -55,10 +55,8 @@ const AlumnadoFormulario = () => {
         
         let start = 0;
         let end = 0;
-        
-        switch (group) {
+          switch (group) {
             case 'black':
-                start = 0;
                 end = blackColumns - 1;
                 break;
             case 'green':
