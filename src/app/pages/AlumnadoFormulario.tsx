@@ -16,6 +16,55 @@ type FormFieldValue = string | number | null | undefined;
 const firstSectionFields = ['NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
 const thirdSectionFields = ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION'];
 
+// Función para formatear los headers de las columnas (igual que en AlumnadoCatalogo y StudentDetailsModal)
+const formatColumnHeader = (columnName: string): string => {
+    // Casos especiales para ciertos campos
+    const specialCases: { [key: string]: string } = {
+        'ID': 'ID',
+        'CORREO.ELECTONICO ': 'Correo Electrónico',
+        'CORREO.ELECTONICO': 'Correo Electrónico',
+        'SUMA.PORCENTAJE.ACTIVIDADES': 'Suma % Actividades',
+        'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES': 'Total Alcanzado % Actividades',
+        'PARTICIPACIÓN': 'Participación',
+        'TOTAL.ALCANZADO': 'Total Alcanzado',
+        'CALIFICACION': 'Calificación'
+    };
+
+    // Si hay un caso especial definido, usarlo
+    if (specialCases[columnName]) {
+        return specialCases[columnName];
+    }
+
+    // Detectar y formatear fechas al final del texto
+    // Patrón: texto-dd-mmm-yy (ejemplo: "Conceptos Basicos Probabilidad-05-nov-21")
+    const datePattern = /^(.+)-(\d{1,2})-([a-z]{3})-(\d{2})$/i;
+    const dateMatch = columnName.match(datePattern);
+    
+    if (dateMatch) {
+        const [, textPart, day, month, year] = dateMatch;
+        // Formatear la parte del texto (reemplazar puntos por espacios y capitalizar)
+        const formattedText = textPart
+            .split('.')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join(' ');
+        
+        // Formatear la fecha: dd/mmm/yy
+        const formattedDate = `${day}/${month}/${year}`;
+        
+        return `${formattedText.replace('-', ' ').replace('-', ' ').replace('  ', ' ')} ${formattedDate}`;
+    }
+
+    // Formateo general para otros casos
+    return columnName
+        .split('.') // Dividir por puntos
+        .map(word => word.toLowerCase()) // Convertir a minúsculas
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalizar primera letra
+        .join(' ')
+        .replace('-', ' ')
+        .replace('-', ' ')
+        .replace('  ', ' '); // Unir con espacios
+};
+
 const AlumnadoFormulario = () => {
     const { excelData, columnConfig } = useExcelContext();
     const { id } = useParams();
@@ -159,7 +208,7 @@ const AlumnadoFormulario = () => {
                     {columns.map(([key, value]) => (
                         <div key={key} className="mb-4">
                             <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
-                                {key}
+                                {formatColumnHeader(key)}
                             </label>
                             {renderEditableInput(key, value)}
                         </div>
@@ -200,7 +249,7 @@ const AlumnadoFormulario = () => {
                         {firstSectionFields.map(field => (
                             <div key={field} className="mb-4">
                                 <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
-                                    {field}
+                                    {formatColumnHeader(field)}
                                 </label>
                                 {renderEditableInput(field, formData[field])}
                             </div>
@@ -223,7 +272,7 @@ const AlumnadoFormulario = () => {
                         {thirdSectionFields.map(field => (
                             <div key={field} className="mb-4">
                                 <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
-                                    {field}
+                                    {formatColumnHeader(field)}
                                 </label>
                                 {renderReadOnlyField(field, formData[field])}
                             </div>
