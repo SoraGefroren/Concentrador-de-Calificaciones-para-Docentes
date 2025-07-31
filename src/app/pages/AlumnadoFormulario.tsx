@@ -16,6 +16,11 @@ type FormFieldValue = string | number | null | undefined;
 const firstSectionFields = ['NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
 const thirdSectionFields = ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION'];
 
+// Función para formatear los campos de las columnas
+const formatFieldName = (fieldName: string): string => {
+    return fieldName.replace(/[ÁÉÍÓÚÜáéíóúüÑñ]/g, '�');
+}
+
 // Función para formatear los headers de las columnas (igual que en AlumnadoCatalogo y StudentDetailsModal)
 const formatColumnHeader = (columnName: string): string => {
     // Casos especiales para ciertos campos
@@ -74,8 +79,13 @@ const AlumnadoFormulario = () => {
     // Encontrar los datos del alumno seleccionado
     const alumnoData = excelData.find((row) => 
         row['ID']?.toString() === id
-    );    // Estado para los datos editables
+    ); // Estado para los datos editables
     const [formData, setFormData] = useState<ExcelData>(alumnoData || {});
+    
+    const datesData = [...excelData].slice(0, 1)[0];
+    const [formDates, setFormDates] = useState<ExcelData>(datesData || {});
+    const pointsData = [...excelData].slice(1, 2)[0];
+    const [formPoints, setFormPoints] = useState<ExcelData>(pointsData || {});
 
     useEffect(() => {
         if (alumnoData) {
@@ -98,13 +108,13 @@ const AlumnadoFormulario = () => {
     }
 
     // Función para obtener las columnas por grupo de color
-    const getColumnsByGroup = (group: 'black' | 'green' | 'purple') => {
+    const getColumnsByGroup = (group: 'black' | 'green' | 'purple', myFormData: ExcelData) => {
         const blackColumns = columnConfig.black.numColumns;
         const greenColumns = columnConfig.green.numColumns;
         
         let start = 0;
         let end = 0;
-          switch (group) {
+        switch (group) {
             case 'black':
                 end = blackColumns - 1;
                 break;
@@ -119,7 +129,7 @@ const AlumnadoFormulario = () => {
         }
 
         // Filtrar todas las columnas excluyendo las de las secciones primera y tercera
-        const allMiddleColumns = Object.entries(formData)
+        const allMiddleColumns = Object.entries(myFormData)
             .filter(([key]) => !firstSectionFields.includes(key) && 
                               !thirdSectionFields.includes(key) && 
                               key !== 'BUSQUEDA' &&
@@ -148,34 +158,70 @@ const AlumnadoFormulario = () => {
         });
     };
     
-    const renderEditableInput = (field: string, value: FormFieldValue) => {
+    const renderEditableInput = (field: string, value: FormFieldValue, date: FormFieldValue, point: FormFieldValue) => {
         if (typeof value === 'number') {
-            return (
-                <InputNumber
-                    value={value}
-                    onValueChange={(e) => handleInputChange(field, e.value)}
-                    mode="decimal"
-                    minFractionDigits={2}
-                    maxFractionDigits={2}
-                    className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                    locale="es-MX"
-                />
-            );
+            if (date || point) {
+                return (
+                    <div className="p-inputgroup flex-1">
+                        <InputNumber
+                            value={value}
+                            onValueChange={(e) => handleInputChange(field, e.value)}
+                            tooltip={date ? `${date}` : ''}
+                            mode="decimal"
+                            minFractionDigits={2}
+                            maxFractionDigits={2}
+                            className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                            locale="es-MX"
+                        />
+                        <span className="p-inputgroup-addon">
+                            {point ? `/${point}` : ''}
+                        </span>
+                    </div>
+                );
+            } else {
+                return (
+                    <InputNumber
+                        value={value}
+                        onValueChange={(e) => handleInputChange(field, e.value)}
+                        mode="decimal"
+                        minFractionDigits={2}
+                        maxFractionDigits={2}
+                        className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                        locale="es-MX"
+                    />
+                );
+            }
         } else {
-            return (
-                <InputText
-                    value={value?.toString() ?? ''}
-                    onChange={(e) => handleInputChange(field, e.target.value)}
-                    className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                />
-            );
+            if (date || point) {
+                return (
+                    <div className="p-inputgroup flex-1">
+                        <InputText
+                            value={value?.toString() ?? ''}
+                            tooltip={date ? `${date}` : ''}
+                            onChange={(e) => handleInputChange(field, e.target.value)}
+                            className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                        />
+                        <span className="p-inputgroup-addon">
+                            {point ? `/${point}` : ''}
+                        </span>
+                    </div>
+                );
+            } else {
+                return (
+                    <InputText
+                        value={value?.toString() ?? ''}
+                        onChange={(e) => handleInputChange(field, e.target.value)}
+                        className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                    />
+                );
+            }
         }
     };
 
-    const renderReadOnlyField = (field: string, value: FormFieldValue) => {
+    const renderReadOnlyField = (field: string, value: FormFieldValue, date: FormFieldValue, point: FormFieldValue) => {
         // Caso especial: hacer editable el campo "PARTICIPACIÓN"
         if (field === 'PARTICIPACIÓN') {
-            return renderEditableInput(field, value);
+            return renderEditableInput(field, value, date, point);
         }
         
         // Para todos los demás campos, mantener como solo lectura
@@ -192,7 +238,9 @@ const AlumnadoFormulario = () => {
     };
 
     const renderColorGroup = (group: 'black' | 'green' | 'purple', title: string, bgColor: string) => {
-        const columns = getColumnsByGroup(group);
+        const columns = getColumnsByGroup(group, formData);
+        const columnsDates = getColumnsByGroup(group, formDates);
+        const columnsPoints = getColumnsByGroup(group, formPoints);
         
         if (columns.length === 0) return null;
 
@@ -205,12 +253,21 @@ const AlumnadoFormulario = () => {
                     {title}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {columns.map(([key, value]) => (
+                    {columns.map(([key, value], idx) => (
                         <div key={key} className="mb-4">
                             <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
                                 {formatColumnHeader(key)}
                             </label>
-                            {renderEditableInput(key, value)}
+                            {renderEditableInput(key, value,
+                                    (((columnsDates.length > idx) && (columnsDates[idx].length > 1))
+                                        ? (columnsDates[idx][1] || '')
+                                        : ''
+                                    ),
+                                    (((columnsPoints.length > idx) && (columnsPoints[idx].length > 1))
+                                        ? (columnsPoints[idx][1] || '')
+                                        : ''
+                                    )
+                                )}
                         </div>
                     ))}
                 </div>
@@ -251,7 +308,7 @@ const AlumnadoFormulario = () => {
                                 <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
                                     {formatColumnHeader(field)}
                                 </label>
-                                {renderEditableInput(field, formData[field])}
+                                {renderEditableInput(field, formData[field], null, null)}
                             </div>
                         ))}
                     </div>
@@ -273,13 +330,17 @@ const AlumnadoFormulario = () => {
                             <div key={field} className="mb-4">
                                 <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
                                     {formatColumnHeader(field)}
+                                    {formPoints && (formPoints[field] || formPoints[formatFieldName(field)]) ? ` / ${(formPoints[field] || formPoints[formatFieldName(field)])}` : ''}
                                 </label>
-                                {renderReadOnlyField(field, formData[field])}
+                                {renderReadOnlyField(field,
+                                    (formData[field] || formData[formatFieldName(field)]),
+                                    (formDates[field] || formDates[formatFieldName(field)]),
+                                    (formPoints[field] || formPoints[formatFieldName(field)])
+                                )}
                             </div>
                         ))}
                     </div>
                 </Card>
-
                 
                 <div className="flex justify-end items-center mb-6">
                     <div className="flex gap-3 pt-3">

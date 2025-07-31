@@ -153,7 +153,8 @@ const AlumnadoCatalogo = () => {
     
     const columnContentValueIDTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
         return (
-            <div className="w-full text-right font-bold">                <Button
+            <div className="w-full flex justify-center justify-end gap-2 text-right font-bold">
+                <Button
                     label={String(rowData[props.field] || '0')}
                     icon="pi pi-file-edit"
                     iconPos="right"
@@ -161,6 +162,12 @@ const AlumnadoCatalogo = () => {
                     style={{ fontWeight: 'bolder' }}
                     onClick={() => navigate(`/alumnado/formulario/${rowData[props.field]}`)}
                     tooltip="Editar Alumno"
+                />
+                <Button 
+                    icon="pi pi-trash"
+                    className="p-button-rounded p-button-secondary"
+                    style={{ backgroundColor: 'red', fontWeight: 'bolder', color: 'lightgray' }}
+                    tooltip="Eliminar Alumno"
                 />
             </div>
         );
@@ -245,72 +252,95 @@ const AlumnadoCatalogo = () => {
     return (
         <Menu>
             <Toast ref={toast} />
-            <div className="flex justify-start items-center mb-6">
-                <h2 className="text-3xl font-bold text-gray-800 w-fit">
-                    Catálogo de Alumnos
-                </h2>
-            </div>
-            <div className="w-full overflow-x-auto">
-                <style>
-                    {`
-                        .custom-table .p-datatable-thead > tr > th {
-                            background-color: #374151 !important; /* bg-gray-800 - mismo color que el menú */
-                            color: white !important;
-                            font-weight: 600 !important;
-                            border: 1px solid #4b5563 !important;
-                            padding: 0.75rem !important;
-                            text-align: center !important;
+            <div className="py-4 mx-auto">
+                
+                <div className="flex justify-between items-center mb-6">
+                    <h2 className="text-3xl font-bold text-gray-800">
+                        Catálogo de Alumnos
+                    </h2>
+                    <div className="flex gap-3">
+                        <Button 
+                            label="Registrar Alumno"
+                            icon="pi pi-file"
+                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                        />
+                    </div>
+                </div>
+                
+                <div className="w-full overflow-x-auto">
+                    <style>
+                        {`
+                            .custom-table .p-datatable-thead > tr > th {
+                                background-color: #374151 !important; /* bg-gray-800 - mismo color que el menú */
+                                color: white !important;
+                                font-weight: 600 !important;
+                                border: 1px solid #4b5563 !important;
+                                padding: 0.75rem !important;
+                                text-align: center !important;
+                            }
+                            .custom-table {
+                                border-radius: 0.5rem !important;
+                                overflow: hidden !important;
+                                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+                            }
+                            .custom-table .p-datatable-tbody > tr > td {
+                                border: 1px solid #e5e7eb !important;
+                                padding: 0.75rem !important;
+                            }
+                            .custom-table .p-datatable-tbody > tr.special-row {
+                                background-color: #3b82f6 !important; /* bg-blue-500 - azul más fuerte */
+                                color: white !important; /* Texto blanco para contraste */
+                            }
+                            .custom-table .p-datatable-tbody > tr.special-row > td {
+                                border: none !important; /* Sin bordes para la fila especial */
+                                border-top: 1px solid #3b82f6 !important; /* Solo borde superior del mismo color */
+                                border-bottom: 1px solid #3b82f6 !important; /* Solo borde inferior del mismo color */
+                            }
+                            .custom-table .p-datatable-tbody > tr.special-row:hover {
+                                background-color: #2563eb !important; /* bg-blue-600 - azul aún más fuerte en hover */
+                            }
+                        `}
+                    </style>
+                    <DataTable 
+                        scrollable
+                        rowClassName={getRowClassName}
+                        value={[...excelData].slice(1, excelData.length)}
+                        tableStyle={{ minWidth: '100%', maxWidth: '100%' }}
+                        className="custom-table"
+                    >
+                        {excelData.length > 0 &&
+                            columnsToShow.map((col, index) => (
+                                <Column key={`${col}-${index}`}
+                                        field={col} 
+                                        header={formatColumnHeader(col)}
+                                        body={chooseBodyTemplate(col)} />
+                            ))
                         }
-                        .custom-table {
-                            border-radius: 0.5rem !important;
-                            overflow: hidden !important;
-                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-                        }
-                        .custom-table .p-datatable-tbody > tr > td {
-                            border: 1px solid #e5e7eb !important;
-                            padding: 0.75rem !important;
-                        }
-                        .custom-table .p-datatable-tbody > tr.special-row {
-                            background-color: #3b82f6 !important; /* bg-blue-500 - azul más fuerte */
-                            color: white !important; /* Texto blanco para contraste */
-                        }
-                        .custom-table .p-datatable-tbody > tr.special-row > td {
-                            border: none !important; /* Sin bordes para la fila especial */
-                            border-top: 1px solid #3b82f6 !important; /* Solo borde superior del mismo color */
-                            border-bottom: 1px solid #3b82f6 !important; /* Solo borde inferior del mismo color */
-                        }
-                        .custom-table .p-datatable-tbody > tr.special-row:hover {
-                            background-color: #2563eb !important; /* bg-blue-600 - azul aún más fuerte en hover */
-                        }
-                    `}
-                </style>
-                <DataTable 
-                    scrollable
-                    rowClassName={getRowClassName}
-                    value={[...excelData].slice(1, excelData.length)}
-                    tableStyle={{ minWidth: '100%', maxWidth: '100%' }}
-                    className="custom-table"
-                >
-                    {excelData.length > 0 &&
-                        columnsToShow.map((col, index) => (
-                            <Column key={`${col}-${index}`}
-                                    field={col} 
-                                    header={formatColumnHeader(col)}
-                                    body={chooseBodyTemplate(col)} />
-                        ))
-                    }
-                    <Column 
-                        header="Acciones"
-                        body={columnContentValueAccsTemplate}
-                        style={{ width: '10rem', textAlign: 'center' }}
-                    />
-                </DataTable>
+                        <Column 
+                            header="Acciones"
+                            body={columnContentValueAccsTemplate}
+                            style={{ width: '10rem', textAlign: 'center' }}
+                        />
+                    </DataTable>
+                </div>
+
+                <div className="flex justify-end items-center mb-6">
+                    <div className="flex gap-3 pt-3">
+                        <Button 
+                            label="Registrar Alumno"
+                            icon="pi pi-file"
+                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                        />
+                    </div>
+                </div>
+
             </div>
 
             <StudentDetailsModal
                 visible={activeModal === 'black'}
                 onHide={() => setActiveModal(null)}
                 dates={[...excelData].slice(0, 1)[0]}
+                points={[...excelData].slice(1, 2)[0]}
                 data={selectedData}
                 variant="black"
             />
@@ -319,6 +349,7 @@ const AlumnadoCatalogo = () => {
                 visible={activeModal === 'green'}
                 onHide={() => setActiveModal(null)}
                 dates={[...excelData].slice(0, 1)[0]}
+                points={[...excelData].slice(1, 2)[0]}
                 data={selectedData}
                 variant="green"
             />
@@ -327,6 +358,7 @@ const AlumnadoCatalogo = () => {
                 visible={activeModal === 'purple'}
                 onHide={() => setActiveModal(null)}
                 dates={[...excelData].slice(0, 1)[0]}
+                points={[...excelData].slice(1, 2)[0]}
                 data={selectedData}
                 variant="purple"
             />

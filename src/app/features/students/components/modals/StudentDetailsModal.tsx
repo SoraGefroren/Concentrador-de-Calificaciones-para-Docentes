@@ -15,6 +15,11 @@ interface StudentDetailsModalProps {
 const firstSectionFields = ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
 const thirdSectionFields = ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION'];
 
+// Función para formatear los campos de las columnas
+const formatFieldName = (fieldName: string): string => {
+    return fieldName.replace(/[ÁÉÍÓÚÜáéíóúüÑñ]/g, '�');
+}
+
 // Función para formatear los headers de las columnas (igual que en AlumnadoCatalogo)
 const formatColumnHeader = (columnName: string): string => {
     // Casos especiales para ciertos campos
@@ -87,10 +92,13 @@ const formatDateValue = (value: string | number | null | undefined): string => {
     }
 };
 
-const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentDetailsModalProps) => {
+const StudentDetailsModal = ({ visible, onHide, dates, points, data, variant }: StudentDetailsModalProps) => {
     const { columnConfig } = useExcelContext();
     
-    if (!data) return null;    // Usar configuración dinámica en lugar de valores estáticos
+    if (!data)
+        // Usar configuración dinámica en lugar de valores estáticos
+        return null;
+    
     const variantHeaders = {
         black: {
             title: 'Detalles (Negro)',
@@ -116,14 +124,17 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
         <div className="grid grid-cols-2 gap-4 mb-6">
             {fields.map(key => (
                 <div key={key} className="col-span-1">
-                    <div className="font-bold text-gray-700">{formatColumnHeader(key)}</div>
+                    <div className="font-bold text-gray-700">
+                        {formatColumnHeader(key)}
+                        {points && (points[key] || points[formatFieldName(key)]) ? ` / ${(points[key] || points[formatFieldName(key)])}` : ''}
+                    </div>
                     <div className="mt-1 p-2">
-                        {typeof data[key] === 'number' 
+                        {typeof (data[key] || data[formatFieldName(key)] || '') === 'number' 
                             ? new Intl.NumberFormat('es-MX', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2
-                              }).format(data[key])
-                            : data[key]?.toString() ?? ''}
+                              }).format(data[key] || data[formatFieldName(key)] || 0)
+                            : (data[key] || data[formatFieldName(key)] || '')?.toString() ?? ''}
                     </div>
                 </div>
             ))}
@@ -167,6 +178,7 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
     
     const tableData = [
         { name: 'Fecha', ...dates },
+        { name: 'Puntos', ...points },
         { name: 'Resultados', ...middleSectionData }
     ];
 
@@ -231,44 +243,45 @@ const StudentDetailsModal = ({ visible, onHide, dates, data, variant }: StudentD
                 modal
                 className={`p-fluid custom-dialog-header-${variant}`}
             >
-            <div className="space-y-8">
-                {/* Segunda sección - Tabla con fechas */}
-                <div className="border-b pt-4">
-                    <h3 className="text-lg font-semibold mb-4">Detalle de Actividades</h3>
-                    <DataTable value={tableData} className="p-datatable-sm">
-                        <Column 
-                            field="name" 
-                            header=""
-                            className="font-bold"
-                        />
-                        {Object.keys(middleSectionData).map(key => (
-                            <Column
-                                key={key}
-                                field={key}
-                                header={formatColumnHeader(key)}
-                                body={(rowData) => (
-                                    <div className="text-right font-bold">
-                                        {rowData.name === 'Fecha' 
-                                            ? formatDateValue(rowData[key])
-                                            : typeof rowData[key] === 'number'
-                                                ? new Intl.NumberFormat('es-MX', {
-                                                    minimumFractionDigits: 2,
-                                                    maximumFractionDigits: 2
-                                                  }).format(rowData[key])                                                : rowData[key]?.toString() ?? ''}
-                                    </div>
-                                )}
-                                style={{ textAlign: 'center' }}
+                <div className="space-y-8">
+                    {/* Segunda sección - Tabla con fechas */}
+                    <div className="border-b pt-4">
+                        <DataTable value={tableData} className="p-datatable-sm">
+                            <Column 
+                                field="name" 
+                                header=""
+                                className="font-bold"
                             />
-                        ))}
-                    </DataTable>
+                            {Object.keys(middleSectionData).map(key => (
+                                <Column
+                                    key={key}
+                                    field={key}
+                                    header={formatColumnHeader(key)}
+                                    body={(rowData) => (
+                                        <div className="text-right font-bold">
+                                            {rowData.name === 'Fecha' 
+                                                ? formatDateValue(rowData[key])
+                                                : typeof rowData[key] === 'number'
+                                                    ? new Intl.NumberFormat('es-MX', {
+                                                        minimumFractionDigits: 2,
+                                                        maximumFractionDigits: 2
+                                                    }).format(rowData[key])
+                                                    : rowData[key]?.toString() ?? ''
+                                            }
+                                        </div>
+                                    )}
+                                    style={{ textAlign: 'center' }}
+                                />
+                            ))}
+                        </DataTable>
+                    </div>
+                    {/* Tercera sección */}
+                    <div>
+                        <h3 className="text-lg font-semibold mb-4">Resultados</h3>
+                        {renderSection(thirdSectionFields)}
+                    </div>
                 </div>
-                {/* Tercera sección */}
-                <div>
-                    <h3 className="text-lg font-semibold mb-4">Resultados</h3>
-                    {renderSection(thirdSectionFields)}
-                </div>
-            </div>
-        </Dialog>
+            </Dialog>
         </>
     );
 };
