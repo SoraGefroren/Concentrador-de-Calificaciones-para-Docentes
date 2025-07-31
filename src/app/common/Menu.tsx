@@ -81,7 +81,8 @@ const Menu = ({ children, showLateralMenu = true, showControlsMenu = true }) => 
                 </div>
                 {/* Contenido principal */}
                 <div className="flex-1 bg-white overflow-y-auto">
-                    <div className="flex w-full py-4 bg-gray-800 text-white pl-4 sm:pl-0 pr-4">                        <div className={`flex flex justify-center items-center ${
+                    <div className="flex w-full py-4 bg-gray-800 text-white pl-4 sm:pl-0 pr-4">
+                        <div className={`flex flex justify-center items-center ${
                                 showControlsMenu ? '' : 'hidden'
                              }`}>
                             <button 
