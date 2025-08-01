@@ -9,7 +9,7 @@ export const ValidateAccessToRoute = ({ element }: ValidateAccessToRouteProps) =
     const fileRoute = localStorage.getItem('fileRoute');
     // Si no tengo la ruta, volvemos al login
     if (!fileRoute) {
-        return <Navigate to="/login" replace />;
+        return <Navigate to="/cargar-hoja" replace />;
     }
     return element;
 };

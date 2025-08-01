@@ -100,7 +100,7 @@ const AlumnadoFormulario = () => {
                     <h2 className="text-2xl font-bold text-red-600 mb-4">Alumno no encontrado</h2>
                     <Button 
                         label="Volver al catálogo" 
-                        onClick={() => navigate('/alumnado/catalogo')}
+                        onClick={() => navigate('/')}
                         className="p-button-primary" />
                 </div>
             </Menu>
@@ -276,7 +276,8 @@ const AlumnadoFormulario = () => {
     };
 
     return (
-        <Menu>
+        <Menu
+            navBarTitle={`Formulario del Alumno - ${formData['ID']}`}>
             <Toast ref={toast} />
             <div className="p-4 max-w-7xl mx-auto">
                 <div className="flex justify-between items-center mb-6">
@@ -293,7 +294,7 @@ const AlumnadoFormulario = () => {
                         <Button 
                             label="Volver al catálogo" 
                             icon="pi pi-arrow-left"
-                            onClick={() => navigate('/alumnado/catalogo')}
+                            onClick={() => navigate('/')}
                             className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
                         />
                     </div>
@@ -353,7 +354,7 @@ const AlumnadoFormulario = () => {
                         <Button 
                             label="Volver al catálogo" 
                             icon="pi pi-arrow-left"
-                            onClick={() => navigate('/alumnado/catalogo')}
+                            onClick={() => navigate('/')}
                             className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
                         />
                     </div>

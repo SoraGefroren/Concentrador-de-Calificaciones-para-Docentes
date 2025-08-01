@@ -6,7 +6,7 @@ import { FileUpload } from 'primereact/fileupload';
 import { Card } from 'primereact/card';
 import FileUploadEvent from '../features/adds/FileUploadEvent';
 
-const Login = () => {
+const CargarHojaDeDatos = () => {
     // Variables de estado
     const navigate = useNavigate();
     const [loading, setLoading] = useState(false);
@@ -65,4 +65,4 @@ const Login = () => {
     );
 };
 
-export default Login;
+export default CargarHojaDeDatos;

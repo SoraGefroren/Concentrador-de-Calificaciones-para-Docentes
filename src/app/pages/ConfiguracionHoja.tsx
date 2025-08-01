@@ -1,13 +1,13 @@
 import Menu from '../common/Menu.tsx';
-import { useExcelContext } from '../common/contexts/ExcelContext';
+import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
 import { useState } from 'react';
-import type { ColumnConfig } from '../common/hooks/useExcelData';
+import type { ColumnConfig } from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { Button } from 'primereact/button';
 
-const ConfiguracionColumnas = () => {
+const ConfiguracionHoja = () => {
   const { columnConfig } = useExcelContext();
   const [config, setConfig] = useState<ColumnConfig>(columnConfig);
 
@@ -58,4 +58,4 @@ const ConfiguracionColumnas = () => {
   );
 };
 
-export default ConfiguracionColumnas;
+export default ConfiguracionHoja;

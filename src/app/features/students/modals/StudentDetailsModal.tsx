@@ -1,8 +1,8 @@
 import { Dialog } from 'primereact/dialog';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
-import type { ExcelData } from '../../../../common/hooks/useExcelData';
-import { useExcelContext } from '../../../../common/contexts/ExcelContext';
+import type { ExcelData } from '../../../common/hooks/useExcelData';
+import { useExcelContext } from '../../../common/contexts/ExcelContext';
 
 interface StudentDetailsModalProps {
     visible: boolean;

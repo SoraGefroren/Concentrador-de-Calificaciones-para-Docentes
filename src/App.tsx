@@ -5,12 +5,14 @@ import 'primeicons/primeicons.css';
 import './App.css'
 
 import Home from './app/pages/Home.tsx'
-import Login from './app/pages/Login.tsx'
 import ResumenDeDatos from './app/pages/ResumenDeDatos.tsx'
+import TotalesAlcanzados from './app/pages/TotalesAlcanzados.tsx'
+
+import CargarHojaDeDatos from './app/pages/CargarHojaDeDatos.tsx'
+import CerrarHojaDeDatos from './app/pages/CerrarHojaDeDatos.tsx'
+import ConfiguracionHoja from './app/pages/ConfiguracionHoja.tsx';
 import AlumnadoCatalogo from './app/pages/AlumnadoCatalogo.tsx'
 import AlumnadoFormulario from './app/pages/AlumnadoFormulario.tsx'
-import TotalesAlcanzados from './app/pages/TotalesAlcanzados.tsx'
-import ConfiguracionColumnas from './app/pages/ConfiguracionColumnas.tsx';
 
 import { ValidateAccessToRoute } from './app/common/hooks/ValidateAccessToRoute.tsx';
 import { ExcelProvider } from './app/common/contexts/ExcelContext.tsx';
@@ -22,35 +24,23 @@ function App() {
       <Routes>
         <Route
           path="/"
-          element={<ValidateAccessToRoute element={<Home />} />}
-        />
-        <Route
-          path="/alumnado/catalogo"
           element={<ValidateAccessToRoute element={<AlumnadoCatalogo />} />}
         />
         <Route
-          path="/alumnado/formulario"
+          path="/alumno/:id"
           element={<ValidateAccessToRoute element={<AlumnadoFormulario />} />}
         />
         <Route
-          path="/alumnado/formulario/:id"
-          element={<ValidateAccessToRoute element={<AlumnadoFormulario />} />}
+          path="/configuracion"
+          element={<ValidateAccessToRoute element={<ConfiguracionHoja />} />}
         />
         <Route
-          path="/totales_alcanzados"
-          element={<ValidateAccessToRoute element={<TotalesAlcanzados />} />}
+          path="/cerrar-hoja"
+          element={<CerrarHojaDeDatos />}
         />
         <Route
-          path="/resumen_de_datos"
-          element={<ValidateAccessToRoute element={<ResumenDeDatos />} />}
-        />
-        <Route
-          path="/configuracion_columnas"
-          element={<ValidateAccessToRoute element={<ConfiguracionColumnas />} />}
-        />
-        <Route
-          path="/login"
-          element={<Login />}
+          path="/cargar-hoja"
+          element={<CargarHojaDeDatos />}
         />
         <Route
           path="*"

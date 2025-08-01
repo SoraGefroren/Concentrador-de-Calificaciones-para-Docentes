@@ -1,5 +1,5 @@
 import { Button } from 'primereact/button';
-import type { ExcelData } from '../../../../common/hooks/useExcelData';
+import type { ExcelData } from '../../../common/hooks/useExcelData';
 
 interface StudentActionButtonsProps {
     rowData: ExcelData;

@@ -1,6 +1,8 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom';
 
-const Menu = ({ children, showLateralMenu = true, showControlsMenu = true }) => {
+const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu = true }) => {
+    const navigate = useNavigate();
     const [navbarOpen, setNavbarOpen] = React.useState(false);
     const [lateralMenuVisible, setLateralMenuVisible] = React.useState(showLateralMenu);
     return (
@@ -11,12 +13,14 @@ const Menu = ({ children, showLateralMenu = true, showControlsMenu = true }) => 
                         lateralMenuVisible ? 'sm:w-48' : 'hidden'
                      }`}>
                     <nav className="fixed w-48 py-4 h-screen bg-gray-800 text-white flex flex-col">
-                        <h2 className="text-2xl font-bold px-4 py-2 text-center">
-                            Menú
-                        </h2>
+                        <button onClick={() => navigate(`/`)}>
+                            <h2 className="text-2xl font-bold px-4 py-2 text-center">
+                                Cocado
+                            </h2>
+                        </button>
                         <ul className='flex-1 py-4 h-full overflow-y-auto'>
                             <li>
-                                <a href="/alumnado/catalogo" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
+                                <a href="/" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
                                     <span className='text-left pr-2'>
                                         Alumnado
                                     </span>
@@ -35,31 +39,17 @@ const Menu = ({ children, showLateralMenu = true, showControlsMenu = true }) => 
                                 </a>
                             </li>
                             <li>
-                                <a href="/totales_alcanzados" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
+                                <a href="/configuracion" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
                                     <span className='text-left pr-2'>
-                                        Totales alcanzados
+                                        Configuración
                                     </span>
                                     <svg xmlns="http://www.w3.org/2000/svg"
-                                        className="group-hover:stroke-white icon icon-tabler icon-tabler-sum"
-                                        width="44" height="44" viewBox="0 0 24 24"
-                                        strokeWidth="1.5" stroke="#2c3e50" fill="none"
-                                        strokeLinecap="round" strokeLinejoin="round">
-                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                        <path d="M18 16v2a1 1 0 0 1 -1 1h-11l6 -7l-6 -7h11a1 1 0 0 1 1 1v2" />
-                                    </svg>
-                                </a>
-                            </li>
-                            <li>
-                                <a href="/resumen_de_datos" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
-                                    <span className='text-left pr-2'>
-                                        Resumen de datos
-                                    </span>
-                                    <svg xmlns="http://www.w3.org/2000/svg"
-                                        className="group-hover:stroke-white icon icon-tabler icon-tabler-brand-databricks"
+                                        className="group-hover:stroke-white icon icon-tabler icon-tabler-settings"
                                         width="44" height="44" viewBox="0 0 24 24" strokeWidth="1.5"
                                         stroke="#2c3e50" fill="none" strokeLinecap="round" strokeLinejoin="round">
                                         <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                        <path d="M3 17l9 5l9 -5v-3l-9 5l-9 -5v-3l9 5l9 -5v-3l-9 5l-9 -5l9 -5l5.418 3.01" />
+                                        <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" />
+                                        <path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />
                                     </svg>
                                 </a>
                             </li>
@@ -127,34 +117,23 @@ const Menu = ({ children, showLateralMenu = true, showControlsMenu = true }) => 
                         </div>
                         <div className='flex-1 text-center'>
                             <h2 className='text-4xl font-bold'>
-                                Titulo
+                                { navBarTitle || 'Concentrador de Calificaciones para Docentes' }
                             </h2>
                         </div>
                         <div className={`flex flex justify-center items-center ${
                                 showControlsMenu ? '' : 'hidden'
                              }`}>
-                            <button className='group'>
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                    className="group-hover:stroke-white icon icon-tabler icon-tabler-tools"
-                                    width="44" height="44" viewBox="0 0 24 24" strokeWidth="1.5"
-                                    stroke="#2c3e50" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                            <button 
+                                className='group'
+                                onClick={() => navigate('/cerrar-hoja')}>
+                                <svg xmlns="http://www.w3.org/2000/svg" 
+                                    class="icon icon-tabler icon-tabler-logout" 
+                                    width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" 
+                                    stroke="#2c3e50" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                    <path d="M3 21h4l13 -13a1.5 1.5 0 0 0 -4 -4l-13 13v4" />
-                                    <path d="M14.5 5.5l4 4" />
-                                    <path d="M12 8l-5 -5l-4 4l5 5" />
-                                    <path d="M7 8l-1.5 1.5" />
-                                    <path d="M16 12l5 5l-4 4l-5 -5" />
-                                    <path d="M16 17l-1.5 1.5" />
-                                </svg>
-                            </button>
-                            <button className='group'>
-                                <svg xmlns="http://www.w3.org/2000/svg"
-                                    className="group-hover:stroke-white icon icon-tabler icon-tabler-settings"
-                                    width="44" height="44" viewBox="0 0 24 24" strokeWidth="1.5"
-                                    stroke="#2c3e50" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                    <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" />
-                                    <path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" />
+                                    <path d="M14 8v-2a2 2 0 0 0 -2 -2h-6a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2 -2v-2" />
+                                    <path d="M9 12h12l-3 -3" />
+                                    <path d="M18 15l3 -3" />
                                 </svg>
                             </button>
                         </div>

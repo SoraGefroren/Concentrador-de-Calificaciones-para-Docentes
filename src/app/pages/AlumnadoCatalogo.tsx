@@ -7,8 +7,13 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
 import { Toast } from 'primereact/toast';
 import { useState, useRef } from 'react';
-import StudentDetailsModal from '../features/students/components/modals/StudentDetailsModal';
-import StudentActionButtons from '../features/students/components/modals/StudentActionButtons';
+import StudentDetailsModal from '../features/students/modals/StudentDetailsModal.tsx';
+import StudentActionButtons from '../features/students/components/StudentActionButtons.tsx';
+
+// Función para formatear los campos de las columnas
+const formatFieldName = (fieldName: string): string => {
+    return fieldName.replace(/[ÁÉÍÓÚÜáéíóúüÑñ]/g, '�');
+}
 
 const AlumnadoCatalogo = () => {
     const { excelData } = useExcelContext();
@@ -146,7 +151,7 @@ const AlumnadoCatalogo = () => {
         } else {
             // Etiqueta de fecha vacía o no válida
             return  <div className="w-full text-right font-bold">
-                        { rowData[props.field] || '' }
+                        { rowData[props.field] || rowData[formatFieldName(props.field)] || '' }
                     </div>;
         }
     };
@@ -154,14 +159,24 @@ const AlumnadoCatalogo = () => {
     const columnContentValueIDTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
         return (
             <div className="w-full flex justify-center justify-end gap-2 text-right font-bold">
+                <span
+                    className="p-button-rounded p-2">
+                    { rowData[props.field] || '0' }
+                </span>
                 <Button
-                    label={String(rowData[props.field] || '0')}
                     icon="pi pi-file-edit"
                     iconPos="right"
                     className="p-button-rounded text-white bg-blue-500 hover:bg-blue-800 p-2"
                     style={{ fontWeight: 'bolder' }}
-                    onClick={() => navigate(`/alumnado/formulario/${rowData[props.field]}`)}
+                    onClick={() => navigate(`/alumno/${rowData[props.field]}`)}
                     tooltip="Editar Alumno"
+                />
+                <Button 
+                    icon="pi pi-eye"
+                    className="p-button-rounded text-white bg-green-500 hover:bg-green-800 p-2"
+                    style={{ fontWeight: 'bolder', color: 'lightgray' }}
+                    onClick={() => navigate(`/alumno/${rowData[props.field]}`)}
+                    tooltip="Ver Alumno"
                 />
                 <Button 
                     icon="pi pi-trash"
@@ -250,8 +265,11 @@ const AlumnadoCatalogo = () => {
     };
     
     return (
-        <Menu>
+        <Menu
+            navBarTitle="Catálogo de Alumnos">
+            
             <Toast ref={toast} />
+
             <div className="py-4 mx-auto">
                 
                 <div className="flex justify-between items-center mb-6">
@@ -362,6 +380,7 @@ const AlumnadoCatalogo = () => {
                 data={selectedData}
                 variant="purple"
             />
+            
         </Menu>
     );
 };
