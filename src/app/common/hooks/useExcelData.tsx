@@ -5,6 +5,21 @@ export interface ExcelData {
     [key: string]: string | number;
 }
 
+export interface PeriodConfig {
+    id: string;
+    name: string;
+    numColumns: number;
+    rangeColumns: string;
+    color: string;
+    order: number;
+    columns: Array<{
+        id: string;
+        header: string;
+        date: string;
+        points: number;
+    }>;
+}
+
 export interface ColumnConfig {
     black: {
         numColumns: number;
@@ -21,6 +36,12 @@ export interface ColumnConfig {
         rangeColumns: string;
         color: string;
     };
+}
+
+export interface ExtendedColumnConfig {
+    periods: PeriodConfig[];
+    fixedColumnsLeft: string[];
+    fixedColumnsRight: string[];
 }
 
 export const useExcelData = () => {

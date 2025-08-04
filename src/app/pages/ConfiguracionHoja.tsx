@@ -1,7 +1,7 @@
 import Menu from '../common/Menu.tsx';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
 import { useRef, useState } from 'react';
-import type { ColumnConfig } from '../common/hooks/useExcelData.tsx';
+import type { ColumnConfig, PeriodConfig, ExtendedColumnConfig } from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
@@ -12,21 +12,76 @@ import { ColorPicker } from 'primereact/colorpicker';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
+import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 
 const ConfiguracionHoja = () => {
   const toast = useRef<Toast>(null);
   const navigate = useNavigate();
   const { columnConfig } = useExcelContext();
   const [config, setConfig] = useState<ColumnConfig>(columnConfig);
-  const [periodNames, setPeriodNames] = useState({
-    black: 'Primer Período',
-    green: 'Segundo Período', 
-    purple: 'Tercer Período'
+  
+  // Estado para configuración extendida con períodos dinámicos
+  const [extendedConfig, setExtendedConfig] = useState<ExtendedColumnConfig>(() => {
+    const saved = localStorage.getItem('extendedColumnConfig');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Error loading extended config, using defaults');
+      }
+    }
+    
+    // Configuración por defecto basada en la configuración actual
+    return {
+      periods: [
+        {
+          id: 'black',
+          name: 'Primer Período',
+          numColumns: config.black.numColumns,
+          rangeColumns: config.black.rangeColumns,
+          color: config.black.color,
+          order: 1,
+          columns: Array.from({ length: config.black.numColumns }, (_, i) => ({
+            id: `black-${i}`,
+            header: `ACTIVIDAD-${i + 1}`,
+            date: '01-ENE-22',
+            points: 10
+          }))
+        },
+        {
+          id: 'green',
+          name: 'Segundo Período',
+          numColumns: config.green.numColumns,
+          rangeColumns: config.green.rangeColumns,
+          color: config.green.color,
+          order: 2,
+          columns: Array.from({ length: config.green.numColumns }, (_, i) => ({
+            id: `green-${i}`,
+            header: `ACTIVIDAD-${i + 1}`,
+            date: '01-FEB-22',
+            points: 10
+          }))
+        },
+        {
+          id: 'purple',
+          name: 'Tercer Período',
+          numColumns: config.purple.numColumns,
+          rangeColumns: config.purple.rangeColumns,
+          color: config.purple.color,
+          order: 3,
+          columns: Array.from({ length: config.purple.numColumns }, (_, i) => ({
+            id: `purple-${i}`,
+            header: `ACTIVIDAD-${i + 1}`,
+            date: '01-MAR-22',
+            points: 10
+          }))
+        }
+      ],
+      fixedColumnsLeft: ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '],
+      fixedColumnsRight: ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION']
+    };
   });
-  const [fixedColumns, setFixedColumns] = useState({
-    left: ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '],
-    right: ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION']
-  });
+
   const [activeTab, setActiveTab] = useState(0);
 
   // Funciones de utilidad para calcular rangos de columnas Excel
@@ -57,75 +112,202 @@ const ConfiguracionHoja = () => {
 
   // Calcular automáticamente los rangos basado en las columnas fijas
   const recalculateRanges = () => {
-    const leftFixedCount = fixedColumns.left.length;
+    const leftFixedCount = extendedConfig.fixedColumnsLeft.length;
     
-    // El primer grupo de colores empieza después de las columnas fijas izquierdas
-    const blackStart = getExcelColumnName(leftFixedCount + 1);
-    const blackRange = calculateRange(blackStart, config.black.numColumns);
-    
-    // El segundo grupo empieza después del primero
-    const greenStart = getExcelColumnName(leftFixedCount + config.black.numColumns + 1);
-    const greenRange = calculateRange(greenStart, config.green.numColumns);
-    
-    // El tercer grupo empieza después del segundo
-    const purpleStart = getExcelColumnName(leftFixedCount + config.black.numColumns + config.green.numColumns + 1);
-    const purpleRange = calculateRange(purpleStart, config.purple.numColumns);
+    // Actualizar rangos para todos los períodos dinámicamente
+    let currentPosition = leftFixedCount + 1;
+    const updatedPeriods = extendedConfig.periods
+      .sort((a, b) => a.order - b.order)
+      .map((period) => {
+        const startColumn = getExcelColumnName(currentPosition);
+        const range = calculateRange(startColumn, period.numColumns);
+        currentPosition += period.numColumns;
+        
+        return {
+          ...period,
+          rangeColumns: range
+        };
+      });
 
-    setConfig(prev => ({
+    setExtendedConfig(prev => ({
       ...prev,
-      black: { ...prev.black, rangeColumns: blackRange },
-      green: { ...prev.green, rangeColumns: greenRange },
-      purple: { ...prev.purple, rangeColumns: purpleRange }
+      periods: updatedPeriods
+    }));
+
+    // También actualizar la configuración legacy para compatibilidad
+    const blackPeriod = updatedPeriods.find(p => p.id === 'black');
+    const greenPeriod = updatedPeriods.find(p => p.id === 'green');
+    const purplePeriod = updatedPeriods.find(p => p.id === 'purple');
+
+    if (blackPeriod && greenPeriod && purplePeriod) {
+      setConfig(prev => ({
+        ...prev,
+        black: { ...prev.black, rangeColumns: blackPeriod.rangeColumns },
+        green: { ...prev.green, rangeColumns: greenPeriod.rangeColumns },
+        purple: { ...prev.purple, rangeColumns: purplePeriod.rangeColumns }
+      }));
+    }
+  };
+
+  // Función para agregar un nuevo período
+  const addPeriod = () => {
+    const newId = `period-${Date.now()}`;
+    const newOrder = Math.max(...extendedConfig.periods.map(p => p.order)) + 1;
+    const newPeriod: PeriodConfig = {
+      id: newId,
+      name: `Período ${newOrder}`,
+      numColumns: 5,
+      rangeColumns: '',
+      color: '#3b82f6',
+      order: newOrder,
+      columns: Array.from({ length: 5 }, (_, i) => ({
+        id: `${newId}-${i}`,
+        header: `ACTIVIDAD-${i + 1}`,
+        date: '01-ENE-24',
+        points: 10
+      }))
+    };
+
+    setExtendedConfig(prev => ({
+      ...prev,
+      periods: [...prev.periods, newPeriod]
+    }));
+
+    toast.current?.show({
+      severity: 'success',
+      summary: 'Período agregado',
+      detail: 'Nuevo período creado exitosamente',
+      life: 3000
+    });
+  };
+
+  // Función para eliminar un período
+  const removePeriod = (periodId: string) => {
+    confirmDialog({
+      message: '¿Estás seguro de que deseas eliminar este período? Esta acción no se puede deshacer.',
+      header: 'Confirmar eliminación',
+      icon: 'pi pi-exclamation-triangle',
+      accept: () => {
+        setExtendedConfig(prev => ({
+          ...prev,
+          periods: prev.periods.filter(p => p.id !== periodId)
+        }));
+
+        toast.current?.show({
+          severity: 'info',
+          summary: 'Período eliminado',
+          detail: 'El período ha sido eliminado exitosamente',
+          life: 3000
+        });
+      }
+    });
+  };
+
+  // Función para actualizar un período
+  const updatePeriod = (periodId: string, updates: Partial<PeriodConfig>) => {
+    setExtendedConfig(prev => ({
+      ...prev,
+      periods: prev.periods.map(p => 
+        p.id === periodId ? { ...p, ...updates } : p
+      )
     }));
   };
 
-  const handleChange = (group: keyof ColumnConfig, field: keyof ColumnConfig['black'], value: string | number) => {
-    setConfig(prev => ({
-      ...prev,
-      [group]: {
-        ...prev[group],
-        [field]: value
-      }
-    }));
+  // Función para agregar columna a un período
+  const addColumnToPeriod = (periodId: string) => {
+    const period = extendedConfig.periods.find(p => p.id === periodId);
+    if (!period) return;
+
+    const newColumn = {
+      id: `${periodId}-${Date.now()}`,
+      header: `ACTIVIDAD-${period.columns.length + 1}`,
+      date: '01-ENE-24',
+      points: 10
+    };
+
+    updatePeriod(periodId, {
+      columns: [...period.columns, newColumn],
+      numColumns: period.columns.length + 1
+    });
+
+    toast.current?.show({
+      severity: 'success',
+      summary: 'Columna agregada',
+      detail: 'Nueva columna agregada al período',
+      life: 3000
+    });
   };
 
-  const handleColorChange = (group: keyof ColumnConfig, color: string) => {
-    setConfig(prev => ({
-      ...prev,
-      [group]: {
-        ...prev[group],
-        color: `#${color}`
-      }
-    }));
+  // Función para eliminar columna de un período
+  const removeColumnFromPeriod = (periodId: string, columnId: string) => {
+    const period = extendedConfig.periods.find(p => p.id === periodId);
+    if (!period || period.columns.length <= 1) {
+      toast.current?.show({
+        severity: 'warn',
+        summary: 'No se puede eliminar',
+        detail: 'Un período debe tener al menos una columna',
+        life: 3000
+      });
+      return;
+    }
+
+    updatePeriod(periodId, {
+      columns: period.columns.filter(c => c.id !== columnId),
+      numColumns: period.columns.length - 1
+    });
+
+    toast.current?.show({
+      severity: 'info',
+      summary: 'Columna eliminada',
+      detail: 'Columna eliminada del período',
+      life: 3000
+    });
+  };
+
+  // Función para actualizar una columna específica
+  const updateColumn = (periodId: string, columnId: string, updates: { header?: string; date?: string; points?: number }) => {
+    const period = extendedConfig.periods.find(p => p.id === periodId);
+    if (!period) return;
+
+    const updatedColumns = period.columns.map(c => 
+      c.id === columnId ? { ...c, ...updates } : c
+    );
+
+    updatePeriod(periodId, { columns: updatedColumns });
   };
 
   const addFixedColumn = (side: 'left' | 'right') => {
     const newColumnName = `NUEVA_COLUMNA_${Date.now()}`;
-    setFixedColumns(prev => ({
+    const key = side === 'left' ? 'fixedColumnsLeft' : 'fixedColumnsRight';
+    
+    setExtendedConfig(prev => ({
       ...prev,
-      [side]: [...prev[side], newColumnName]
+      [key]: [...prev[key], newColumnName]
     }));
   };
 
   const removeFixedColumn = (side: 'left' | 'right', index: number) => {
-    setFixedColumns(prev => ({
+    const key = side === 'left' ? 'fixedColumnsLeft' : 'fixedColumnsRight';
+    
+    setExtendedConfig(prev => ({
       ...prev,
-      [side]: prev[side].filter((_, i) => i !== index)
+      [key]: prev[key].filter((_, i) => i !== index)
     }));
   };
 
   const updateFixedColumn = (side: 'left' | 'right', index: number, value: string) => {
-    setFixedColumns(prev => ({
+    const key = side === 'left' ? 'fixedColumnsLeft' : 'fixedColumnsRight';
+    
+    setExtendedConfig(prev => ({
       ...prev,
-      [side]: prev[side].map((col, i) => i === index ? value : col)
+      [key]: prev[key].map((col, i) => i === index ? value : col)
     }));
   };
 
   const handleSave = () => {
-    // Guardar configuración en localStorage
+    // Guardar ambas configuraciones en localStorage
     localStorage.setItem('columnConfig', JSON.stringify(config));
-    localStorage.setItem('periodNames', JSON.stringify(periodNames));
-    localStorage.setItem('fixedColumns', JSON.stringify(fixedColumns));
+    localStorage.setItem('extendedColumnConfig', JSON.stringify(extendedConfig));
     
     toast.current?.show({
       severity: 'success',
@@ -144,48 +326,51 @@ const ConfiguracionHoja = () => {
     const errors = [];
     
     // Validar que no haya rangos superpuestos
-    const totalColorColumns = config.black.numColumns + config.green.numColumns + config.purple.numColumns;
-    const totalFixedColumns = fixedColumns.left.length + fixedColumns.right.length;
+    const totalColorColumns = extendedConfig.periods.reduce((sum, period) => sum + period.numColumns, 0);
+    const totalFixedColumns = extendedConfig.fixedColumnsLeft.length + extendedConfig.fixedColumnsRight.length;
     
     if (totalColorColumns + totalFixedColumns > 26) {
       errors.push('El total de columnas excede las 26 columnas disponibles (A-Z)');
+    }
+
+    // Validar que cada período tenga al menos una columna
+    const periodsWithoutColumns = extendedConfig.periods.filter(p => p.numColumns < 1);
+    if (periodsWithoutColumns.length > 0) {
+      errors.push('Todos los períodos deben tener al menos una columna');
     }
     
     return errors;
   };
 
   const previewConfiguration = () => {
-    const leftCols = fixedColumns.left.map((col, idx) => ({
+    const leftCols = extendedConfig.fixedColumnsLeft.map((col, idx) => ({
       name: col,
       position: getExcelColumnName(idx + 1),
       type: 'fixed-left'
     }));
 
-    const blackCols = Array.from({ length: config.black.numColumns }, (_, idx) => ({
-      name: `${periodNames.black}_${idx + 1}`,
-      position: getExcelColumnName(fixedColumns.left.length + idx + 1),
-      type: 'black'
-    }));
+    let currentPosition = extendedConfig.fixedColumnsLeft.length + 1;
+    const periodCols = extendedConfig.periods
+      .sort((a, b) => a.order - b.order)
+      .flatMap(period => 
+        Array.from({ length: period.numColumns }, (_, idx) => ({
+          name: `${period.name}_${idx + 1}`,
+          position: getExcelColumnName(currentPosition + idx),
+          type: period.id,
+          periodName: period.name
+        }))
+      );
 
-    const greenCols = Array.from({ length: config.green.numColumns }, (_, idx) => ({
-      name: `${periodNames.green}_${idx + 1}`,
-      position: getExcelColumnName(fixedColumns.left.length + config.black.numColumns + idx + 1),
-      type: 'green'
-    }));
+    // Actualizar currentPosition después de los períodos
+    currentPosition += extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0);
 
-    const purpleCols = Array.from({ length: config.purple.numColumns }, (_, idx) => ({
-      name: `${periodNames.purple}_${idx + 1}`,
-      position: getExcelColumnName(fixedColumns.left.length + config.black.numColumns + config.green.numColumns + idx + 1),
-      type: 'purple'
-    }));
-
-    const rightCols = fixedColumns.right.map((col, idx) => ({
+    const rightCols = extendedConfig.fixedColumnsRight.map((col, idx) => ({
       name: col,
-      position: getExcelColumnName(fixedColumns.left.length + config.black.numColumns + config.green.numColumns + config.purple.numColumns + idx + 1),
+      position: getExcelColumnName(currentPosition + idx),
       type: 'fixed-right'
     }));
 
-    return [...leftCols, ...blackCols, ...greenCols, ...purpleCols, ...rightCols];
+    return [...leftCols, ...periodCols, ...rightCols];
   };
 
   const errors = validateConfiguration();
@@ -194,6 +379,7 @@ const ConfiguracionHoja = () => {
   return (
     <Menu navBarTitle="Configuración de Hoja de datos">
       <Toast ref={toast} />
+      <ConfirmDialog />
       <div className="p-4 max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
           <div className="flex gap-3">
@@ -237,66 +423,142 @@ const ConfiguracionHoja = () => {
         <TabView activeIndex={activeTab} onTabChange={(e) => setActiveTab(e.index)}>
           <TabPanel header="Configuración de Períodos" leftIcon="pi pi-calendar mr-2">
             <Card className="mb-6">
-              <h4 className="font-bold mb-4">Configuración de Períodos de Colores</h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {(['black', 'green', 'purple'] as (keyof ColumnConfig)[]).map((group) => (
-                  <div key={group} className="p-4 border rounded shadow">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div 
-                        className="w-6 h-6 rounded border"
-                        style={{ backgroundColor: config[group].color }}
-                      ></div>
-                      <h3 className="font-bold capitalize">
-                        {group === 'black' ? 'Negro' : group === 'green' ? 'Verde' : 'Morado'}
-                      </h3>
-                    </div>
-                    
-                    <div className="mb-3">
-                      <label className="block text-sm font-medium mb-1">Nombre del período</label>
-                      <InputText 
-                        value={periodNames[group]} 
-                        onChange={e => setPeriodNames(prev => ({ ...prev, [group]: e.target.value }))} 
-                        className="w-full"
-                      />
-                    </div>
-                    
-                    <div className="mb-3">
-                      <label className="block text-sm font-medium mb-1">Rango de columnas</label>
-                      <InputText 
-                        value={config[group].rangeColumns} 
-                        onChange={e => handleChange(group, 'rangeColumns', e.target.value)} 
-                        className="w-full"
-                        placeholder="Ej: F1:L1"
-                      />
-                    </div>
-                    
-                    <div className="mb-3">
-                      <label className="block text-sm font-medium mb-1">Número de columnas</label>
-                      <InputNumber 
-                        value={config[group].numColumns} 
-                        onValueChange={e => handleChange(group, 'numColumns', e.value || 0)} 
-                        className="w-full"
-                        min={1}
-                        max={10}
-                      />
-                    </div>
-                    
-                    <div className="mb-3">
-                      <label className="block text-sm font-medium mb-1">Color</label>
-                      <div className="flex gap-2 items-center">
-                        <ColorPicker 
-                          value={config[group].color.replace('#', '')} 
-                          onChange={e => handleColorChange(group, e.value?.toString() || '')} 
+              <div className="flex justify-between items-center mb-4">
+                <h4 className="font-bold">Configuración de Períodos de Colores</h4>
+                <Button
+                  label="Agregar Período"
+                  icon="pi pi-plus"
+                  className="p-button-success"
+                  onClick={addPeriod}
+                />
+              </div>
+              
+              <div className="grid grid-cols-1 gap-6">
+                {extendedConfig.periods
+                  .sort((a, b) => a.order - b.order)
+                  .map((period) => (
+                  <Card key={period.id} className="border-l-4" style={{ borderLeftColor: period.color }}>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-8 h-8 rounded border"
+                          style={{ backgroundColor: period.color }}
+                        ></div>
+                        <h3 className="font-bold text-lg">{period.name}</h3>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button
+                          icon="pi pi-plus"
+                          className="p-button-sm p-button-success"
+                          tooltip="Agregar columna"
+                          onClick={() => addColumnToPeriod(period.id)}
                         />
-                        <InputText 
-                          value={config[group].color} 
-                          onChange={e => handleChange(group, 'color', e.target.value)}
-                          className="flex-1"
-                          placeholder="#000000ff"
-                        />
+                        {extendedConfig.periods.length > 1 && (
+                          <Button
+                            icon="pi pi-trash"
+                            className="p-button-sm p-button-danger"
+                            tooltip="Eliminar período"
+                            onClick={() => removePeriod(period.id)}
+                          />
+                        )}
                       </div>
                     </div>
-                  </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Nombre del período</label>
+                        <InputText 
+                          value={period.name} 
+                          onChange={(e) => updatePeriod(period.id, { name: e.target.value })} 
+                          className="w-full"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Número de columnas</label>
+                        <InputNumber 
+                          value={period.numColumns} 
+                          onValueChange={(e) => updatePeriod(period.id, { numColumns: e.value || 1 })} 
+                          className="w-full"
+                          min={1}
+                          max={10}
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Color</label>
+                        <div className="flex gap-2 items-center">
+                          <ColorPicker 
+                            value={period.color.replace('#', '')} 
+                            onChange={(e) => updatePeriod(period.id, { color: `#${e.value}` })} 
+                          />
+                          <InputText 
+                            value={period.color} 
+                            onChange={(e) => updatePeriod(period.id, { color: e.target.value })}
+                            className="flex-1"
+                            placeholder="#000000"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Sección de columnas del período */}
+                    <div className="border-t pt-4">
+                      <div className="flex justify-between items-center mb-3">
+                        <h5 className="font-medium">Columnas del Período</h5>
+                        <span className="text-sm text-gray-500">{period.columns.length} columnas</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-3">
+                        {period.columns.map((column, colIndex) => (
+                          <div key={column.id} className="flex gap-3 items-center p-3 bg-gray-50 rounded">
+                            <span className="text-sm font-medium w-8">{colIndex + 1}</span>
+                            
+                            <div className="flex-1">
+                              <label className="block text-xs text-gray-600 mb-1">Nombre</label>
+                              <InputText
+                                value={column.header}
+                                onChange={(e) => updateColumn(period.id, column.id, { header: e.target.value })}
+                                className="w-full text-sm"
+                                placeholder="Nombre de la actividad"
+                              />
+                            </div>
+                            
+                            <div className="w-32">
+                              <label className="block text-xs text-gray-600 mb-1">Fecha</label>
+                              <InputText
+                                value={column.date}
+                                onChange={(e) => updateColumn(period.id, column.id, { date: e.target.value })}
+                                className="w-full text-sm"
+                                placeholder="DD-MMM-AA"
+                              />
+                            </div>
+                            
+                            <div className="w-20">
+                              <label className="block text-xs text-gray-600 mb-1">Puntos</label>
+                              <InputNumber
+                                value={column.points}
+                                onValueChange={(e) => updateColumn(period.id, column.id, { points: e.value || 0 })}
+                                className="w-full text-sm"
+                                min={0}
+                                max={100}
+                              />
+                            </div>
+                            
+                            {period.columns.length > 1 && (
+                              <Button
+                                icon="pi pi-trash"
+                                className="p-button-sm p-button-danger p-button-text"
+                                tooltip="Eliminar columna"
+                                onClick={() => removeColumnFromPeriod(period.id, column.id)}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </Card>
                 ))}
               </div>
             </Card>
@@ -316,7 +578,7 @@ const ConfiguracionHoja = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  {fixedColumns.left.map((column, index) => (
+                  {extendedConfig.fixedColumnsLeft.map((column, index) => (
                     <div key={index} className="flex gap-2 items-center">
                       <span className="text-sm text-gray-500 w-8">{getExcelColumnName(index + 1)}</span>
                       <InputText
@@ -346,23 +608,28 @@ const ConfiguracionHoja = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  {fixedColumns.right.map((column, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <span className="text-sm text-gray-500 w-8">
-                        {getExcelColumnName(fixedColumns.left.length + config.black.numColumns + config.green.numColumns + config.purple.numColumns + index + 1)}
-                      </span>
-                      <InputText
-                        value={column}
-                        onChange={e => updateFixedColumn('right', index, e.target.value)}
-                        className="flex-1"
-                      />
-                      <Button
-                        icon="pi pi-trash"
-                        className="p-button-sm p-button-danger p-button-text"
-                        onClick={() => removeFixedColumn('right', index)}
-                      />
-                    </div>
-                  ))}
+                  {extendedConfig.fixedColumnsRight.map((column, index) => {
+                    const totalPeriodsColumns = extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0);
+                    const position = extendedConfig.fixedColumnsLeft.length + totalPeriodsColumns + index + 1;
+                    
+                    return (
+                      <div key={index} className="flex gap-2 items-center">
+                        <span className="text-sm text-gray-500 w-8">
+                          {getExcelColumnName(position)}
+                        </span>
+                        <InputText
+                          value={column}
+                          onChange={e => updateFixedColumn('right', index, e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button
+                          icon="pi pi-trash"
+                          className="p-button-sm p-button-danger p-button-text"
+                          onClick={() => removeFixedColumn('right', index)}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </Card>
             </div>
@@ -382,19 +649,50 @@ const ConfiguracionHoja = () => {
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
                         rowData.type === 'fixed-left' ? 'bg-blue-100 text-blue-800' :
                         rowData.type === 'fixed-right' ? 'bg-gray-100 text-gray-800' :
-                        rowData.type === 'black' ? 'bg-gray-800 text-white' :
-                        rowData.type === 'green' ? 'bg-green-100 text-green-800' :
-                        'bg-purple-100 text-purple-800'
+                        'bg-indigo-100 text-indigo-800'
                       }`}>
                         {rowData.type === 'fixed-left' ? 'Fija Izq.' :
                          rowData.type === 'fixed-right' ? 'Fija Der.' :
-                         rowData.type === 'black' ? periodNames.black :
-                         rowData.type === 'green' ? periodNames.green :
-                         periodNames.purple}
+                         rowData.periodName || rowData.type}
                       </span>
                     )}
                   />
                 </DataTable>
+              </div>
+              
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-blue-50 rounded">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {extendedConfig.fixedColumnsLeft.length}
+                  </div>
+                  <div className="text-sm text-blue-600">Columnas Fijas Izq.</div>
+                </div>
+                
+                <div className="text-center p-4 bg-indigo-50 rounded">
+                  <div className="text-2xl font-bold text-indigo-600">
+                    {extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0)}
+                  </div>
+                  <div className="text-sm text-indigo-600">Columnas de Períodos</div>
+                </div>
+                
+                <div className="text-center p-4 bg-gray-50 rounded">
+                  <div className="text-2xl font-bold text-gray-600">
+                    {extendedConfig.fixedColumnsRight.length}
+                  </div>
+                  <div className="text-sm text-gray-600">Columnas Fijas Der.</div>
+                </div>
+              </div>
+
+              <div className="mt-4 text-center">
+                <div className="text-lg font-bold">
+                  Total: {preview.length} columnas
+                </div>
+                <div className="text-sm text-gray-600">
+                  {preview.length <= 26 ? 
+                    `✅ Dentro del límite (${26 - preview.length} columnas restantes)` :
+                    `❌ Excede el límite por ${preview.length - 26} columnas`
+                  }
+                </div>
               </div>
             </Card>
           </TabPanel>
