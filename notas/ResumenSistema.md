@@ -78,3 +78,9 @@ En mi archivo, tenemos columnas especiales divididas en colores. Actualmente, es
     CLASIFICACION.METODOS.ECUACIONES-CUADRATICAS-14-ENE-22,
     EXAMEN.FINAL-19-ENE-22,
 ]
+
+El archivo de excel divide su contenido en 4 partes:
+1. Fila 0: Header, con las columanas anteriores.
+2. Fila 1: Con una lista especifica de fechas que aplicaran a las columnas, como si fueran un segundo header.
+3. Fila 2: Con una lista especifica de puntos que aplicaran a las columnas, como si fueran un tercer header.
+4. Fila 3 en adelante, contenido legitomo del archivo de excel.
