@@ -9,6 +9,7 @@ import { Toast } from 'primereact/toast';
 import { useState, useRef } from 'react';
 import StudentDetailsModal from '../features/students/modals/StudentDetailsModal.tsx';
 import StudentActionButtons from '../features/students/components/StudentActionButtons.tsx';
+import { InputText } from 'primereact/inputtext';
 
 // Función para formatear los campos de las columnas
 const formatFieldName = (fieldName: string): string => {
@@ -273,8 +274,15 @@ const AlumnadoCatalogo = () => {
             <div className="py-4 mx-auto">
                 
                 <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-3xl font-bold text-gray-800">
-                        Catálogo de Alumnos
+                    <h2 className="flex-none text-3xl font-bold text-gray-800">
+                        <div className="p-inputgroup">
+                            <InputText
+                                className="bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                            />
+                            <span className="p-inputgroup-addon">
+                                <span className='pi pi-search'></span>
+                            </span>
+                        </div>
                     </h2>
                     <div className="flex gap-3">
                         <Button 

@@ -20,6 +20,21 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
                         </button>
                         <ul className='flex-1 py-4 h-full overflow-y-auto'>
                             <li>
+                                <a href="/configuracion" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
+                                    <span className='text-left pr-2'>
+                                        Alternar
+                                    </span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" 
+                                        class="icon icon-tabler icon-tabler-arrows-exchange" 
+                                        width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" 
+                                        stroke="#2c3e50" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                        <path d="M5 10h14l-4 -4" />
+                                        <path d="M19 14h-14l4 4" />
+                                    </svg>
+                                </a>
+                            </li>
+                            <li>
                                 <a href="/" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
                                     <span className='text-left pr-2'>
                                         Alumnado
@@ -123,6 +138,17 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
                         <div className={`flex flex justify-center items-center ${
                                 showControlsMenu ? '' : 'hidden'
                              }`}>
+                            <button 
+                                className='group'>
+                                <svg xmlns="http://www.w3.org/2000/svg" 
+                                    class="icon icon-tabler icon-tabler-arrows-exchange" 
+                                    width="44" height="44" viewBox="0 0 24 24" stroke-width="1.5" 
+                                    stroke="#2c3e50" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                    <path d="M5 10h14l-4 -4" />
+                                    <path d="M19 14h-14l4 4" />
+                                </svg>
+                            </button>
                             <button 
                                 className='group'
                                 onClick={() => navigate('/cerrar-hoja')}>

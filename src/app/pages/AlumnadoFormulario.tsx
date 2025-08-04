@@ -280,10 +280,7 @@ const AlumnadoFormulario = () => {
             navBarTitle={`Formulario del Alumno - ${formData['ID']}`}>
             <Toast ref={toast} />
             <div className="p-4 max-w-7xl mx-auto">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-3xl font-bold text-gray-800">
-                        Formulario del Alumno - {formData['ID']}
-                    </h2>
+                <div className="flex justify-end items-center mb-6">
                     <div className="flex gap-3">
                         <Button 
                             label="Guardar Cambios"

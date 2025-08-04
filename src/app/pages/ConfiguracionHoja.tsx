@@ -1,13 +1,17 @@
 import Menu from '../common/Menu.tsx';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ColumnConfig } from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { Button } from 'primereact/button';
+import { useNavigate } from 'react-router-dom';
+import { Toast } from 'primereact/toast';
 
 const ConfiguracionHoja = () => {
+  const toast = useRef<Toast>(null);
+  const navigate = useNavigate();
   const { columnConfig } = useExcelContext();
   const [config, setConfig] = useState<ColumnConfig>(columnConfig);
 
@@ -27,9 +31,26 @@ const ConfiguracionHoja = () => {
   };
 
   return (
-    <Menu>
-      <div className="max-w-2xl mx-auto py-8">
-        <Card title="Configuración de Columnas">
+    <Menu navBarTitle="Configuración de Hoja de datos">
+      <Toast ref={toast} />
+      <div className="p-4 max-w-7xl mx-auto">
+        <div className="flex justify-end items-center mb-6">
+          <div className="flex gap-3">
+            <Button
+                label="Guardar configuración"
+                icon="pi pi-save"
+                className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                onClick={handleSave} />
+            <Button 
+                label="Volver al catálogo" 
+                icon="pi pi-arrow-left"
+                onClick={() => navigate('/')}
+                className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
+            />
+          </div>
+        </div>
+        {/* Primera sección - Datos básicos editables */}
+        <Card className="mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {(['black', 'green', 'purple'] as (keyof ColumnConfig)[]).map((group) => (
               <div key={group} className="p-4 border rounded shadow">
@@ -49,10 +70,22 @@ const ConfiguracionHoja = () => {
               </div>
             ))}
           </div>
-          <div className="mt-6 flex justify-end">
-            <Button label="Guardar configuración" icon="pi pi-save" className="p-button-success" onClick={handleSave} />
-          </div>
         </Card>
+        <div className="mt-6 flex justify-end">
+          <div className="flex gap-3 pt-3">
+            <Button
+                label="Guardar configuración"
+                icon="pi pi-save"
+                className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                onClick={handleSave} />
+            <Button 
+                label="Volver al catálogo" 
+                icon="pi pi-arrow-left"
+                onClick={() => navigate('/')}
+                className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
+            />
+          </div>
+        </div>
       </div>
     </Menu>
   );
