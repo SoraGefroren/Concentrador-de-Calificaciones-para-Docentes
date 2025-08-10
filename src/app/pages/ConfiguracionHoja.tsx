@@ -325,14 +325,6 @@ const ConfiguracionHoja = () => {
   const validateConfiguration = () => {
     const errors = [];
     
-    // Validar que no haya rangos superpuestos
-    const totalColorColumns = extendedConfig.periods.reduce((sum, period) => sum + period.numColumns, 0);
-    const totalFixedColumns = extendedConfig.fixedColumnsLeft.length + extendedConfig.fixedColumnsRight.length;
-    
-    if (totalColorColumns + totalFixedColumns > 26) {
-      errors.push('El total de columnas excede las 26 columnas disponibles (A-Z)');
-    }
-
     // Validar que cada período tenga al menos una columna
     const periodsWithoutColumns = extendedConfig.periods.filter(p => p.numColumns < 1);
     if (periodsWithoutColumns.length > 0) {
@@ -380,7 +372,7 @@ const ConfiguracionHoja = () => {
     <Menu navBarTitle="Configuración de Hoja de datos">
       <Toast ref={toast} />
       <ConfirmDialog />
-      <div className="p-4 max-w-7xl mx-auto">
+      <div className="p-4 max-w-7xl w-full">
         <div className="flex justify-between items-center mb-6">
           <div className="flex gap-3">
             <Button
@@ -420,9 +412,9 @@ const ConfiguracionHoja = () => {
           </Card>
         )}
 
-        <TabView activeIndex={activeTab} onTabChange={(e) => setActiveTab(e.index)}>
-          <TabPanel header="Configuración de Períodos" leftIcon="pi pi-calendar mr-2">
-            <Card className="mb-6">
+        <TabView activeIndex={activeTab} onTabChange={(e) => setActiveTab(e.index)}  className="p-0">
+          <TabPanel header="Configuración de Períodos" leftIcon="pi pi-calendar mr-2" className="p-0">
+            <Card className="mb-6 p-0">
               <div className="flex justify-between items-center mb-4">
                 <h4 className="font-bold">Configuración de Períodos de Colores</h4>
                 <Button
@@ -471,7 +463,7 @@ const ConfiguracionHoja = () => {
                         <InputText 
                           value={period.name} 
                           onChange={(e) => updatePeriod(period.id, { name: e.target.value })} 
-                          className="w-full"
+                          className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                         />
                       </div>
                       
@@ -480,7 +472,7 @@ const ConfiguracionHoja = () => {
                         <InputNumber 
                           value={period.numColumns} 
                           onValueChange={(e) => updatePeriod(period.id, { numColumns: e.value || 1 })} 
-                          className="w-full"
+                          className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                           min={1}
                           max={10}
                         />
@@ -496,7 +488,7 @@ const ConfiguracionHoja = () => {
                           <InputText 
                             value={period.color} 
                             onChange={(e) => updatePeriod(period.id, { color: e.target.value })}
-                            className="flex-1"
+                            className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                             placeholder="#000000"
                           />
                         </div>
@@ -520,7 +512,7 @@ const ConfiguracionHoja = () => {
                               <InputText
                                 value={column.header}
                                 onChange={(e) => updateColumn(period.id, column.id, { header: e.target.value })}
-                                className="w-full text-sm"
+                                className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                                 placeholder="Nombre de la actividad"
                               />
                             </div>
@@ -530,7 +522,7 @@ const ConfiguracionHoja = () => {
                               <InputText
                                 value={column.date}
                                 onChange={(e) => updateColumn(period.id, column.id, { date: e.target.value })}
-                                className="w-full text-sm"
+                                className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                                 placeholder="DD-MMM-AA"
                               />
                             </div>
@@ -540,7 +532,7 @@ const ConfiguracionHoja = () => {
                               <InputNumber
                                 value={column.points}
                                 onValueChange={(e) => updateColumn(period.id, column.id, { points: e.value || 0 })}
-                                className="w-full text-sm"
+                                className="w-20 text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                                 min={0}
                                 max={100}
                               />
@@ -564,8 +556,8 @@ const ConfiguracionHoja = () => {
             </Card>
           </TabPanel>
 
-          <TabPanel header="Columnas Fijas" leftIcon="pi pi-table mr-2">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TabPanel header="Columnas Fijas" leftIcon="pi pi-table mr-2" className="p-0">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-0">
               {/* Columnas Fijas Izquierdas */}
               <Card>
                 <div className="flex justify-between items-center mb-4">
@@ -584,7 +576,7 @@ const ConfiguracionHoja = () => {
                       <InputText
                         value={column}
                         onChange={e => updateFixedColumn('left', index, e.target.value)}
-                        className="flex-1"
+                        className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                       />
                       <Button
                         icon="pi pi-trash"
@@ -620,7 +612,7 @@ const ConfiguracionHoja = () => {
                         <InputText
                           value={column}
                           onChange={e => updateFixedColumn('right', index, e.target.value)}
-                          className="flex-1"
+                          className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                         />
                         <Button
                           icon="pi pi-trash"
@@ -636,7 +628,7 @@ const ConfiguracionHoja = () => {
           </TabPanel>
 
           <TabPanel header="Vista Previa" leftIcon="pi pi-eye mr-2">
-            <Card>
+            <Card className="p-0">
               <h4 className="font-bold mb-4">Vista Previa de la Estructura</h4>
               <div className="overflow-x-auto">
                 <DataTable value={preview} className="text-sm">
@@ -661,11 +653,11 @@ const ConfiguracionHoja = () => {
               </div>
               
               <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-blue-50 rounded">
-                  <div className="text-2xl font-bold text-blue-600">
+                <div className="text-center p-4 bg-gray-50 rounded">
+                  <div className="text-2xl font-bold text-gray-600">
                     {extendedConfig.fixedColumnsLeft.length}
                   </div>
-                  <div className="text-sm text-blue-600">Columnas Fijas Izq.</div>
+                  <div className="text-sm text-gray-600">Columnas Fijas Izq.</div>
                 </div>
                 
                 <div className="text-center p-4 bg-indigo-50 rounded">
@@ -683,17 +675,6 @@ const ConfiguracionHoja = () => {
                 </div>
               </div>
 
-              <div className="mt-4 text-center">
-                <div className="text-lg font-bold">
-                  Total: {preview.length} columnas
-                </div>
-                <div className="text-sm text-gray-600">
-                  {preview.length <= 26 ? 
-                    `✅ Dentro del límite (${26 - preview.length} columnas restantes)` :
-                    `❌ Excede el límite por ${preview.length - 26} columnas`
-                  }
-                </div>
-              </div>
             </Card>
           </TabPanel>
         </TabView>
