@@ -38,10 +38,16 @@ export interface ColumnConfig {
     };
 }
 
+export interface FixedColumnConfig {
+    name: string;
+    date?: string;
+    points?: number;
+}
+
 export interface ExtendedColumnConfig {
     periods: PeriodConfig[];
     fixedColumnsLeft: string[];
-    fixedColumnsRight: string[];
+    fixedColumnsRight: FixedColumnConfig[];
 }
 
 export const useExcelData = () => {

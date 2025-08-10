@@ -1,10 +1,18 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom';
+import ChangeDataSheetModal from './modals/ChangeDataSheetModal';
 
-const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu = true }) => {
+interface MenuProps {
+    children: React.ReactNode;
+    navBarTitle?: string;
+    showLateralMenu?: boolean;
+    showControlsMenu?: boolean;
+}
+
+const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu = true }: MenuProps) => {
     const navigate = useNavigate();
-    const [navbarOpen, setNavbarOpen] = React.useState(false);
     const [lateralMenuVisible, setLateralMenuVisible] = React.useState(showLateralMenu);
+    const [changeDataModalVisible, setChangeDataModalVisible] = React.useState(false);
     return (
         <main>
             <div className="flex">
@@ -20,19 +28,22 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
                         </button>
                         <ul className='flex-1 py-4 h-full overflow-y-auto'>
                             <li>
-                                <a href="/configuracion" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
+                                <button 
+                                    onClick={() => setChangeDataModalVisible(true)}
+                                    className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group"
+                                >
                                     <span className='text-left pr-2'>
                                         Alternar
                                     </span>
                                     <svg xmlns="http://www.w3.org/2000/svg" 
-                                        className="icon icon-tabler icon-tabler-arrows-exchange" 
+                                        className="icon icon-tabler icon-tabler-arrows-exchange group-hover:stroke-white" 
                                         width="44" height="44" viewBox="0 0 24 24"
                                         stroke="#2c3e50" fill="none">
                                         <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
                                         <path d="M5 10h14l-4 -4" />
                                         <path d="M19 14h-14l4 4" />
                                     </svg>
-                                </a>
+                                </button>
                             </li>
                             <li>
                                 <a href="/" className="flex justify-between items-center px-4 py-2 w-full hover:bg-gray-600 hover:font-bold hover:text-white group">
@@ -139,9 +150,10 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
                                 showControlsMenu ? '' : 'hidden'
                              }`}>
                             <button 
+                                onClick={() => setChangeDataModalVisible(true)}
                                 className='group'>
                                 <svg xmlns="http://www.w3.org/2000/svg" 
-                                    className="icon icon-tabler icon-tabler-arrows-exchange" 
+                                    className="icon icon-tabler icon-tabler-arrows-exchange group-hover:stroke-white" 
                                     width="44" height="44" viewBox="0 0 24 24"
                                     stroke="#2c3e50" fill="none">
                                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -169,6 +181,12 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
                     </div>
                 </div>
             </div>
+            
+            {/* Modal para cambiar hoja de datos */}
+            <ChangeDataSheetModal 
+                visible={changeDataModalVisible}
+                onHide={() => setChangeDataModalVisible(false)}
+            />
         </main>
     );
 };

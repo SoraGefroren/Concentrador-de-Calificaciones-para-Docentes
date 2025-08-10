@@ -1,7 +1,7 @@
 import Menu from '../common/Menu.tsx';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
 import { useRef, useState } from 'react';
-import type { ColumnConfig, PeriodConfig, ExtendedColumnConfig } from '../common/hooks/useExcelData.tsx';
+import type { ColumnConfig, PeriodConfig, ExtendedColumnConfig, FixedColumnConfig } from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
@@ -78,11 +78,30 @@ const ConfiguracionHoja = () => {
         }
       ],
       fixedColumnsLeft: ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '],
-      fixedColumnsRight: ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION']
+      fixedColumnsRight: [
+        { name: 'SUMA.PORCENTAJE.ACTIVIDADES', date: undefined, points: undefined },
+        { name: 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', date: undefined, points: undefined },
+        { name: 'PARTICIPACIÓN', date: undefined, points: undefined },
+        { name: 'TOTAL.ALCANZADO', date: undefined, points: undefined },
+        { name: 'CALIFICACION', date: undefined, points: undefined }
+      ]
     };
   });
 
   const [activeTab, setActiveTab] = useState(0);
+  
+  // Estado para trackear elementos recién agregados
+  const [newlyAdded, setNewlyAdded] = useState<{
+    periods: Set<string>;
+    columns: Set<string>;
+    fixedColumnsLeft: Set<number>;
+    fixedColumnsRight: Set<number>;
+  }>({
+    periods: new Set(),
+    columns: new Set(),
+    fixedColumnsLeft: new Set(),
+    fixedColumnsRight: new Set()
+  });
 
   // Funciones de utilidad para calcular rangos de columnas Excel
   const getExcelColumnName = (columnNumber: number): string => {
@@ -108,6 +127,60 @@ const ConfiguracionHoja = () => {
     const endNum = startNum + numColumns - 1;
     const endColumn = getExcelColumnName(endNum);
     return `${startColumn}1:${endColumn}1`;
+  };
+
+  // Función para marcar elementos como nuevos y limpiar la marca después de un tiempo
+  const markAsNew = (type: 'period' | 'column' | 'fixedLeft' | 'fixedRight', id: string | number) => {
+    if (type === 'period' || type === 'column') {
+      setNewlyAdded(prev => ({
+        ...prev,
+        [type === 'period' ? 'periods' : 'columns']: new Set([...prev[type === 'period' ? 'periods' : 'columns'], id as string])
+      }));
+    } else {
+      setNewlyAdded(prev => ({
+        ...prev,
+        [type === 'fixedLeft' ? 'fixedColumnsLeft' : 'fixedColumnsRight']: new Set([...prev[type === 'fixedLeft' ? 'fixedColumnsLeft' : 'fixedColumnsRight'], id as number])
+      }));
+    }
+
+    // Remover la marca después de 5 segundos
+    setTimeout(() => {
+      setNewlyAdded(prev => {
+        if (type === 'period' || type === 'column') {
+          const newSet = new Set(prev[type === 'period' ? 'periods' : 'columns']);
+          newSet.delete(id as string);
+          return {
+            ...prev,
+            [type === 'period' ? 'periods' : 'columns']: newSet
+          };
+        } else {
+          const newSet = new Set(prev[type === 'fixedLeft' ? 'fixedColumnsLeft' : 'fixedColumnsRight']);
+          newSet.delete(id as number);
+          return {
+            ...prev,
+            [type === 'fixedLeft' ? 'fixedColumnsLeft' : 'fixedColumnsRight']: newSet
+          };
+        }
+      });
+    }, 5000);
+  };
+
+  // Función para calcular la posición de una columna específica dentro de un período
+  const getColumnPositionInPeriod = (periodId: string, columnIndex: number): string => {
+    const leftFixedCount = extendedConfig.fixedColumnsLeft.length;
+    const periods = extendedConfig.periods.sort((a, b) => a.order - b.order);
+    
+    let currentPosition = leftFixedCount + 1;
+    
+    // Buscar el período actual y calcular la posición
+    for (const period of periods) {
+      if (period.id === periodId) {
+        return getExcelColumnName(currentPosition + columnIndex);
+      }
+      currentPosition += period.numColumns;
+    }
+    
+    return getExcelColumnName(currentPosition + columnIndex);
   };
 
   // Calcular automáticamente los rangos basado en las columnas fijas
@@ -173,6 +246,9 @@ const ConfiguracionHoja = () => {
       periods: [...prev.periods, newPeriod]
     }));
 
+    // Marcar el nuevo período como recién agregado
+    markAsNew('period', newId);
+
     toast.current?.show({
       severity: 'success',
       summary: 'Período agregado',
@@ -218,8 +294,9 @@ const ConfiguracionHoja = () => {
     const period = extendedConfig.periods.find(p => p.id === periodId);
     if (!period) return;
 
+    const newColumnId = `${periodId}-${Date.now()}`;
     const newColumn = {
-      id: `${periodId}-${Date.now()}`,
+      id: newColumnId,
       header: `ACTIVIDAD-${period.columns.length + 1}`,
       date: '01-ENE-24',
       points: 10
@@ -229,6 +306,9 @@ const ConfiguracionHoja = () => {
       columns: [...period.columns, newColumn],
       numColumns: period.columns.length + 1
     });
+
+    // Marcar la nueva columna como recién agregada
+    markAsNew('column', newColumnId);
 
     toast.current?.show({
       severity: 'success',
@@ -277,30 +357,69 @@ const ConfiguracionHoja = () => {
   };
 
   const addFixedColumn = (side: 'left' | 'right') => {
-    const newColumnName = `NUEVA_COLUMNA_${Date.now()}`;
-    const key = side === 'left' ? 'fixedColumnsLeft' : 'fixedColumnsRight';
-    
-    setExtendedConfig(prev => ({
-      ...prev,
-      [key]: [...prev[key], newColumnName]
-    }));
+    if (side === 'left') {
+      const newColumnName = `NUEVA_COLUMNA_${Date.now()}`;
+      setExtendedConfig(prev => ({
+        ...prev,
+        fixedColumnsLeft: [...prev.fixedColumnsLeft, newColumnName]
+      }));
+      
+      // Marcar la nueva columna izquierda como recién agregada
+      const newIndex = extendedConfig.fixedColumnsLeft.length;
+      markAsNew('fixedLeft', newIndex);
+    } else {
+      const newColumn: FixedColumnConfig = {
+        name: `NUEVA_COLUMNA_${Date.now()}`,
+        date: undefined,
+        points: undefined
+      };
+      setExtendedConfig(prev => ({
+        ...prev,
+        fixedColumnsRight: [...prev.fixedColumnsRight, newColumn]
+      }));
+      
+      // Marcar la nueva columna derecha como recién agregada
+      const newIndex = extendedConfig.fixedColumnsRight.length;
+      markAsNew('fixedRight', newIndex);
+    }
   };
 
   const removeFixedColumn = (side: 'left' | 'right', index: number) => {
-    const key = side === 'left' ? 'fixedColumnsLeft' : 'fixedColumnsRight';
-    
-    setExtendedConfig(prev => ({
-      ...prev,
-      [key]: prev[key].filter((_, i) => i !== index)
-    }));
+    if (side === 'left') {
+      setExtendedConfig(prev => ({
+        ...prev,
+        fixedColumnsLeft: prev.fixedColumnsLeft.filter((_, i) => i !== index)
+      }));
+    } else {
+      setExtendedConfig(prev => ({
+        ...prev,
+        fixedColumnsRight: prev.fixedColumnsRight.filter((_, i) => i !== index)
+      }));
+    }
   };
 
   const updateFixedColumn = (side: 'left' | 'right', index: number, value: string) => {
-    const key = side === 'left' ? 'fixedColumnsLeft' : 'fixedColumnsRight';
-    
+    if (side === 'left') {
+      setExtendedConfig(prev => ({
+        ...prev,
+        fixedColumnsLeft: prev.fixedColumnsLeft.map((col, i) => i === index ? value : col)
+      }));
+    } else {
+      setExtendedConfig(prev => ({
+        ...prev,
+        fixedColumnsRight: prev.fixedColumnsRight.map((col, i) => 
+          i === index ? { ...col, name: value } : col
+        )
+      }));
+    }
+  };
+
+  const updateFixedColumnField = (index: number, field: 'date' | 'points', value: string | number | undefined) => {
     setExtendedConfig(prev => ({
       ...prev,
-      [key]: prev[key].map((col, i) => i === index ? value : col)
+      fixedColumnsRight: prev.fixedColumnsRight.map((col, i) => 
+        i === index ? { ...col, [field]: value } : col
+      )
     }));
   };
 
@@ -338,28 +457,37 @@ const ConfiguracionHoja = () => {
     const leftCols = extendedConfig.fixedColumnsLeft.map((col, idx) => ({
       name: col,
       position: getExcelColumnName(idx + 1),
-      type: 'fixed-left'
+      type: 'fixed-left',
+      date: undefined,
+      points: undefined,
+      category: 'Fijas Izquierdas'
     }));
 
     let currentPosition = extendedConfig.fixedColumnsLeft.length + 1;
     const periodCols = extendedConfig.periods
       .sort((a, b) => a.order - b.order)
       .flatMap(period => 
-        Array.from({ length: period.numColumns }, (_, idx) => ({
-          name: `${period.name}_${idx + 1}`,
+        period.columns.map((column, idx) => ({
+          name: column.header,
           position: getExcelColumnName(currentPosition + idx),
           type: period.id,
-          periodName: period.name
+          periodName: period.name,
+          date: column.date,
+          points: column.points,
+          category: 'Períodos'
         }))
       );
 
-    // Actualizar currentPosition después de los períodos
+    // Actualizar currentPosition después de cada período
     currentPosition += extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0);
 
     const rightCols = extendedConfig.fixedColumnsRight.map((col, idx) => ({
-      name: col,
+      name: col.name,
       position: getExcelColumnName(currentPosition + idx),
-      type: 'fixed-right'
+      type: 'fixed-right',
+      date: col.date,
+      points: col.points,
+      category: 'Fijas Derechas'
     }));
 
     return [...leftCols, ...periodCols, ...rightCols];
@@ -428,16 +556,33 @@ const ConfiguracionHoja = () => {
               <div className="grid grid-cols-1 gap-6">
                 {extendedConfig.periods
                   .sort((a, b) => a.order - b.order)
-                  .map((period) => (
-                  <Card key={period.id} className="border-l-4" style={{ borderLeftColor: period.color }}>
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-8 h-8 rounded border"
-                          style={{ backgroundColor: period.color }}
-                        ></div>
-                        <h3 className="font-bold text-lg">{period.name}</h3>
-                      </div>
+                  .map((period) => {
+                    const isNew = newlyAdded.periods.has(period.id);
+                    return (
+                      <Card 
+                        key={period.id} 
+                        className={`border-l-4 transition-all duration-500 ${
+                          isNew 
+                            ? 'border-2 border-green-400 shadow-lg shadow-green-200 bg-green-50' 
+                            : ''
+                        }`} 
+                        style={{ borderLeftColor: period.color }}
+                      >
+                        <div className="flex justify-between items-start mb-4">
+                          <div className="flex items-center gap-3">
+                            <div 
+                              className="w-8 h-8 rounded border"
+                              style={{ backgroundColor: period.color }}
+                            ></div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-bold text-lg">{period.name}</h3>
+                              {isNew && (
+                                <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
+                                  ¡NUEVO!
+                                </span>
+                              )}
+                            </div>
+                          </div>
                       
                       <div className="flex gap-2">
                         <Button
@@ -503,19 +648,37 @@ const ConfiguracionHoja = () => {
                       </div>
                       
                       <div className="grid grid-cols-1 gap-3">
-                        {period.columns.map((column, colIndex) => (
-                          <div key={column.id} className="flex gap-3 items-center p-3 bg-gray-50 rounded">
-                            <span className="text-sm font-medium w-8">{colIndex + 1}</span>
-                            
-                            <div className="flex-1">
-                              <label className="block text-xs text-gray-600 mb-1">Nombre</label>
-                              <InputText
-                                value={column.header}
-                                onChange={(e) => updateColumn(period.id, column.id, { header: e.target.value })}
-                                className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                placeholder="Nombre de la actividad"
-                              />
-                            </div>
+                        {period.columns.map((column, colIndex) => {
+                          const isNewColumn = newlyAdded.columns.has(column.id);
+                          return (
+                            <div 
+                              key={column.id} 
+                              className={`flex gap-3 items-center p-3 rounded transition-all duration-500 ${
+                                isNewColumn 
+                                  ? 'bg-green-100 border-2 border-green-300 shadow-md' 
+                                  : 'bg-gray-50'
+                              }`}
+                            >
+                              <span className="text-sm font-medium w-8 text-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                {getColumnPositionInPeriod(period.id, colIndex)}
+                              </span>
+                              
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <label className="block text-xs text-gray-600">Nombre</label>
+                                  {isNewColumn && (
+                                    <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
+                                      ¡NUEVA!
+                                    </span>
+                                  )}
+                                </div>
+                                <InputText
+                                  value={column.header}
+                                  onChange={(e) => updateColumn(period.id, column.id, { header: e.target.value })}
+                                  className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                  placeholder="Nombre de la actividad"
+                                />
+                              </div>
                             
                             <div className="w-32">
                               <label className="block text-xs text-gray-600 mb-1">Fecha</label>
@@ -547,11 +710,13 @@ const ConfiguracionHoja = () => {
                               />
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </Card>
-                ))}
+                    );
+                  })}
               </div>
             </Card>
           </TabPanel>
@@ -570,21 +735,38 @@ const ConfiguracionHoja = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  {extendedConfig.fixedColumnsLeft.map((column, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <span className="text-sm text-gray-500 w-8">{getExcelColumnName(index + 1)}</span>
-                      <InputText
-                        value={column}
-                        onChange={e => updateFixedColumn('left', index, e.target.value)}
-                        className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                      />
-                      <Button
-                        icon="pi pi-trash"
-                        className="p-button-sm p-button-danger p-button-text"
-                        onClick={() => removeFixedColumn('left', index)}
-                      />
-                    </div>
-                  ))}
+                  {extendedConfig.fixedColumnsLeft.map((column, index) => {
+                    const isNewLeft = newlyAdded.fixedColumnsLeft.has(index);
+                    return (
+                      <div 
+                        key={index} 
+                        className={`flex gap-2 items-center p-2 rounded transition-all duration-500 ${
+                          isNewLeft 
+                            ? 'bg-green-100 border-2 border-green-300 shadow-md' 
+                            : 'bg-transparent'
+                        }`}
+                      >
+                        <span className="text-sm text-gray-500 w-8">{getExcelColumnName(index + 1)}</span>
+                        <div className="flex-1 flex items-center gap-2">
+                          <InputText
+                            value={column}
+                            onChange={e => updateFixedColumn('left', index, e.target.value)}
+                            className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                          />
+                          {isNewLeft && (
+                            <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
+                              ¡NUEVA!
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          icon="pi pi-trash"
+                          className="p-button-sm p-button-danger p-button-text"
+                          onClick={() => removeFixedColumn('left', index)}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </Card>
 
@@ -599,26 +781,77 @@ const ConfiguracionHoja = () => {
                     tooltip="Agregar columna"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {extendedConfig.fixedColumnsRight.map((column, index) => {
                     const totalPeriodsColumns = extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0);
                     const position = extendedConfig.fixedColumnsLeft.length + totalPeriodsColumns + index + 1;
+                    const isNewRight = newlyAdded.fixedColumnsRight.has(index);
                     
                     return (
-                      <div key={index} className="flex gap-2 items-center">
-                        <span className="text-sm text-gray-500 w-8">
-                          {getExcelColumnName(position)}
-                        </span>
-                        <InputText
-                          value={column}
-                          onChange={e => updateFixedColumn('right', index, e.target.value)}
-                          className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                        />
-                        <Button
-                          icon="pi pi-trash"
-                          className="p-button-sm p-button-danger p-button-text"
-                          onClick={() => removeFixedColumn('right', index)}
-                        />
+                      <div 
+                        key={index} 
+                        className={`p-3 rounded border transition-all duration-500 ${
+                          isNewRight 
+                            ? 'bg-green-100 border-2 border-green-300 shadow-lg' 
+                            : 'bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-sm font-medium text-gray-500 w-8">
+                            {getExcelColumnName(position)}
+                          </span>
+                          <h6 className="font-medium text-gray-700">Columna {index + 1}</h6>
+                          {isNewRight && (
+                            <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
+                              ¡NUEVA!
+                            </span>
+                          )}
+                          <div className="flex-1"></div>
+                          <Button
+                            icon="pi pi-trash"
+                            className="p-button-sm p-button-danger p-button-text"
+                            onClick={() => removeFixedColumn('right', index)}
+                            tooltip="Eliminar columna"
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Nombre *</label>
+                            <InputText
+                              value={column.name}
+                              onChange={e => updateFixedColumn('right', index, e.target.value)}
+                              className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                              placeholder="Nombre de la columna"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Fecha (opcional)</label>
+                            <InputText
+                              value={column.date || ''}
+                              onChange={e => updateFixedColumnField(index, 'date', e.target.value === '' ? undefined : e.target.value)}
+                              className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                              placeholder="DD-MMM-AA"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-xs text-gray-600 mb-1">Puntos (opcional)</label>
+                            <InputNumber
+                              value={column.points ?? null}
+                              onValueChange={(e) => {
+                                const newValue = e.value !== null && e.value !== undefined ? e.value : undefined;
+                                updateFixedColumnField(index, 'points', newValue);
+                              }}
+                              className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                              placeholder="0"
+                              min={0}
+                              max={100}
+                              showButtons={false}
+                            />
+                          </div>
+                        </div>
                       </div>
                     );
                   })}
@@ -633,16 +866,46 @@ const ConfiguracionHoja = () => {
               <div className="overflow-x-auto">
                 <DataTable value={preview} className="text-sm">
                   <Column field="position" header="Posición Excel" style={{ width: '100px' }} />
-                  <Column field="name" header="Nombre de Columna" />
+                  <Column field="name" header="Nombre de Columna" style={{ width: '200px' }} />
                   <Column 
-                    field="type" 
-                    header="Tipo" 
+                    field="date" 
+                    header="Fecha" 
+                    style={{ width: '120px' }}
+                    body={(rowData) => (
+                      <span className="text-xs text-gray-600">
+                        {rowData.date || '-'}
+                      </span>
+                    )}
+                  />
+                  <Column 
+                    field="points" 
+                    header="Puntos" 
+                    style={{ width: '80px' }}
+                    body={(rowData) => (
+                      <span className="text-xs text-gray-600">
+                        {rowData.points !== undefined ? rowData.points : '-'}
+                      </span>
+                    )}
+                  />
+                  <Column 
+                    field="category" 
+                    header="Categoría" 
+                    style={{ width: '120px' }}
                     body={(rowData) => (
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
                         rowData.type === 'fixed-left' ? 'bg-blue-100 text-blue-800' :
                         rowData.type === 'fixed-right' ? 'bg-gray-100 text-gray-800' :
                         'bg-indigo-100 text-indigo-800'
                       }`}>
+                        {rowData.category}
+                      </span>
+                    )}
+                  />
+                  <Column 
+                    field="type" 
+                    header="Detalle" 
+                    body={(rowData) => (
+                      <span className="text-xs text-gray-500">
                         {rowData.type === 'fixed-left' ? 'Fija Izq.' :
                          rowData.type === 'fixed-right' ? 'Fija Der.' :
                          rowData.periodName || rowData.type}
