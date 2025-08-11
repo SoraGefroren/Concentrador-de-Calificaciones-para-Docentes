@@ -1,6 +1,7 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom';
 import ChangeDataSheetModal from './modals/ChangeDataSheetModal';
+import CloseFileModal from './modals/CloseFileModal';
 
 interface MenuProps {
     children: React.ReactNode;
@@ -13,6 +14,7 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
     const navigate = useNavigate();
     const [lateralMenuVisible, setLateralMenuVisible] = React.useState(showLateralMenu);
     const [changeDataModalVisible, setChangeDataModalVisible] = React.useState(false);
+    const [closeFileModalVisible, setCloseFileModalVisible] = React.useState(false);
     return (
         <main>
             <div className="flex">
@@ -162,10 +164,10 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
                                 </svg>
                             </button>
                             <button 
-                                className='group'
-                                onClick={() => navigate('/cerrar-hoja')}>
+                                onClick={() => setCloseFileModalVisible(true)}
+                                className='group'>
                                 <svg xmlns="http://www.w3.org/2000/svg" 
-                                    className="icon icon-tabler icon-tabler-logout" 
+                                    className="icon icon-tabler icon-tabler-logout group-hover:stroke-white" 
                                     width="44" height="44" viewBox="0 0 24 24"
                                     stroke="#2c3e50" fill="none">
                                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -186,6 +188,12 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
             <ChangeDataSheetModal 
                 visible={changeDataModalVisible}
                 onHide={() => setChangeDataModalVisible(false)}
+            />
+            
+            {/* Modal para cerrar archivo */}
+            <CloseFileModal 
+                visible={closeFileModalVisible}
+                onHide={() => setCloseFileModalVisible(false)}
             />
         </main>
     );

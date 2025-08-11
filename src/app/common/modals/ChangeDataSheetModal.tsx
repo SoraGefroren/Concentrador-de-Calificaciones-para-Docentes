@@ -10,6 +10,7 @@ import { Button } from 'primereact/button';
 import { Toast } from 'primereact/toast';
 import { useRef } from 'react';
 import FileUploadEvent from '../../features/adds/FileUploadEvent';
+import CloseFileModal from './CloseFileModal';
 
 interface ChangeDataSheetModalProps {
   visible: boolean;
@@ -20,6 +21,7 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
   const navigate = useNavigate();
   const toast = useRef<Toast>(null);
   const [loading, setLoading] = useState(false);
+  const [closeFileModalVisible, setCloseFileModalVisible] = useState(false);
   const { loadExcelFromFile } = useExcelContext();
 
   const onUpload = async (event: FileUploadEvent) => {
@@ -57,8 +59,8 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
   };
 
   const handleCloseFile = () => {
-    onHide(); // Cerrar la modal primero
-    navigate('/cerrar-hoja'); // Navegar a la página de cerrar archivo
+    onHide(); // Cerrar la modal principal primero
+    setCloseFileModalVisible(true); // Abrir la modal de cerrar archivo
   };
 
   const handleCreateNew = () => {
@@ -186,6 +188,12 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
           )}
         </div>
       </Dialog>
+      
+      {/* Modal para cerrar archivo */}
+      <CloseFileModal 
+        visible={closeFileModalVisible}
+        onHide={() => setCloseFileModalVisible(false)}
+      />
     </>
   );
 };

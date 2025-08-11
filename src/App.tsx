@@ -9,7 +9,6 @@ import ResumenDeDatos from './app/pages/ResumenDeDatos.tsx'
 import TotalesAlcanzados from './app/pages/TotalesAlcanzados.tsx'
 
 import CargarHojaDeDatos from './app/pages/CargarHojaDeDatos.tsx'
-import CerrarHojaDeDatos from './app/pages/CerrarHojaDeDatos.tsx'
 import ConfiguracionHoja from './app/pages/ConfiguracionHoja.tsx';
 import AlumnadoCatalogo from './app/pages/AlumnadoCatalogo.tsx'
 import AlumnadoFormulario from './app/pages/AlumnadoFormulario.tsx'
@@ -33,10 +32,6 @@ function App() {
         <Route
           path="/configuracion"
           element={<ValidateAccessToRoute element={<ConfiguracionHoja />} />}
-        />
-        <Route
-          path="/cerrar-hoja"
-          element={<CerrarHojaDeDatos />}
         />
         <Route
           path="/cargar-hoja"
