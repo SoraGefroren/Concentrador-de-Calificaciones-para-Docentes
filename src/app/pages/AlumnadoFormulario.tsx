@@ -70,30 +70,49 @@ const formatColumnHeader = (columnName: string): string => {
         .replace('  ', ' '); // Unir con espacios
 };
 
+// Tipos de modo para el formulario
+type FormMode = 'view' | 'edit' | 'register';
+
 const AlumnadoFormulario = () => {
     const { excelData, columnConfig } = useExcelContext();
-    const { id } = useParams();
+    const { id, mode } = useParams<{ id?: string; mode?: string }>();
     const navigate = useNavigate();
     const toast = useRef<Toast>(null);
     
-    // Encontrar los datos del alumno seleccionado
-    const alumnoData = excelData.find((row) => 
-        row['ID']?.toString() === id
-    ); // Estado para los datos editables
-    const [formData, setFormData] = useState<ExcelData>(alumnoData || {});
+    // Determinar el modo del formulario
+    const formMode: FormMode = (() => {
+        if (id === 'nuevo') return 'register';
+        if (mode === 'vista') return 'view';
+        return 'edit';
+    })();
+    
+    // Encontrar los datos del alumno seleccionado (solo si no es modo registro)
+    const alumnoData = formMode === 'register' 
+        ? null 
+        : excelData.find((row) => row['ID']?.toString() === id);
+    
+    // Estado para los datos editables
+    const [formData, setFormData] = useState<ExcelData>(() => {
+        if (formMode === 'register') {
+            // Para registro, inicializar con datos vacíos pero con un ID temporal
+            const newId = Math.max(...excelData.map(row => parseInt(row['ID']?.toString() || '0', 10))) + 1;
+            return { ID: newId.toString() };
+        }
+        return alumnoData || {};
+    });
     
     const datesData = [...excelData].slice(0, 1)[0];
-    const [formDates, setFormDates] = useState<ExcelData>(datesData || {});
+    const formDates = datesData || {};
     const pointsData = [...excelData].slice(1, 2)[0];
-    const [formPoints, setFormPoints] = useState<ExcelData>(pointsData || {});
+    const formPoints = pointsData || {};
 
     useEffect(() => {
-        if (alumnoData) {
+        if (alumnoData && formMode !== 'register') {
             setFormData(alumnoData);
         }
-    }, [alumnoData]);
+    }, [alumnoData, formMode]);
 
-    if (!alumnoData) {
+    if (!alumnoData && formMode !== 'register') {
         return (
             <Menu>
                 <div className="p-4">
@@ -149,16 +168,33 @@ const AlumnadoFormulario = () => {
     };
 
     const handleSave = () => {
-        // Aquí puedes implementar la lógica para guardar los cambios
-        toast.current?.show({
-            severity: 'success',
-            summary: 'Éxito',
-            detail: 'Datos del alumno actualizados correctamente',
-            life: 3000
-        });
+        if (formMode === 'register') {
+            // Lógica para registrar un nuevo alumno
+            toast.current?.show({
+                severity: 'success',
+                summary: 'Éxito',
+                detail: 'Nuevo alumno registrado correctamente',
+                life: 3000
+            });
+            // Después de registrar, navegar al catálogo
+            setTimeout(() => navigate('/'), 1500);
+        } else {
+            // Lógica para actualizar alumno existente
+            toast.current?.show({
+                severity: 'success',
+                summary: 'Éxito',
+                detail: 'Datos del alumno actualizados correctamente',
+                life: 3000
+            });
+        }
     };
     
-    const renderEditableInput = (field: string, value: FormFieldValue, date: FormFieldValue, point: FormFieldValue) => {
+    const renderEditableInput = (field: string, value: FormFieldValue, date: FormFieldValue, point: FormFieldValue): JSX.Element => {
+        // En modo vista, mostrar solo lectura (excepto para PARTICIPACIÓN)
+        if (formMode === 'view' && field !== 'PARTICIPACIÓN') {
+            return renderReadOnlyField(field, value, date, point);
+        }
+
         if (typeof value === 'number') {
             if (date || point) {
                 return (
@@ -172,6 +208,7 @@ const AlumnadoFormulario = () => {
                             maxFractionDigits={2}
                             className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                             locale="es-MX"
+                            disabled={formMode === 'view'}
                         />
                         <span className="p-inputgroup-addon">
                             {point ? `/${point}` : ''}
@@ -188,6 +225,7 @@ const AlumnadoFormulario = () => {
                         maxFractionDigits={2}
                         className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                         locale="es-MX"
+                        disabled={formMode === 'view'}
                     />
                 );
             }
@@ -200,6 +238,7 @@ const AlumnadoFormulario = () => {
                             tooltip={date ? `${date}` : ''}
                             onChange={(e) => handleInputChange(field, e.target.value)}
                             className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                            disabled={formMode === 'view'}
                         />
                         <span className="p-inputgroup-addon">
                             {point ? `/${point}` : ''}
@@ -212,6 +251,7 @@ const AlumnadoFormulario = () => {
                         value={value?.toString() ?? ''}
                         onChange={(e) => handleInputChange(field, e.target.value)}
                         className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                        disabled={formMode === 'view'}
                     />
                 );
             }
@@ -275,12 +315,42 @@ const AlumnadoFormulario = () => {
         );
     };
 
-    return (
-        <Menu
-            navBarTitle={`Formulario del Alumno - ${formData['ID']}`}>
-            <Toast ref={toast} />
-            <div className="p-4 max-w-7xl w-full">
-                <div className="flex justify-end items-center mb-6">
+    // Función para obtener el título dinámico
+    const getPageTitle = () => {
+        switch (formMode) {
+            case 'view':
+                return `Detalle del Alumno - ${formData['ID']}`;
+            case 'edit':
+                return `Editar Alumno - ${formData['ID']}`;
+            case 'register':
+                return 'Registrar Nuevo Alumno';
+            default:
+                return 'Formulario del Alumno';
+        }
+    };
+
+    // Función para renderizar los botones de acción
+    const renderActionButtons = () => {
+        switch (formMode) {
+            case 'view':
+                return (
+                    <div className="flex gap-3">
+                        <Button 
+                            label="Editar Alumno"
+                            icon="pi pi-file-edit"
+                            onClick={() => navigate(`/alumno/${formData['ID']}`)}
+                            className="p-button-primary text-white bg-blue-500 hover:bg-blue-800 p-2"
+                        />
+                        <Button 
+                            label="Volver al catálogo" 
+                            icon="pi pi-arrow-left"
+                            onClick={() => navigate('/')}
+                            className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
+                        />
+                    </div>
+                );
+            case 'edit':
+                return (
                     <div className="flex gap-3">
                         <Button 
                             label="Guardar Cambios"
@@ -295,6 +365,36 @@ const AlumnadoFormulario = () => {
                             className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
                         />
                     </div>
+                );
+            case 'register':
+                return (
+                    <div className="flex gap-3">
+                        <Button 
+                            label="Registrar Alumno"
+                            icon="pi pi-save"
+                            onClick={handleSave}
+                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                        />
+                        <Button 
+                            label="Cancelar" 
+                            icon="pi pi-times"
+                            onClick={() => navigate('/')}
+                            className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
+                        />
+                    </div>
+                );
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <Menu
+            navBarTitle={getPageTitle()}>
+            <Toast ref={toast} />
+            <div className="p-4 max-w-7xl w-full">
+                <div className="flex justify-end items-center mb-6">
+                    {renderActionButtons()}
                 </div>
 
                 {/* Primera sección - Datos básicos editables */}
@@ -341,19 +441,8 @@ const AlumnadoFormulario = () => {
                 </Card>
                 
                 <div className="flex justify-end items-center mb-6">
-                    <div className="flex gap-3 pt-3">
-                        <Button 
-                            label="Guardar Cambios"
-                            icon="pi pi-save"
-                            onClick={handleSave}
-                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2" 
-                        />
-                        <Button 
-                            label="Volver al catálogo" 
-                            icon="pi pi-arrow-left"
-                            onClick={() => navigate('/')}
-                            className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
-                        />
+                    <div className="pt-3">
+                        {renderActionButtons()}
                     </div>
                 </div>
             </div>

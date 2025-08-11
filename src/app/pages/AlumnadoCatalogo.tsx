@@ -6,10 +6,29 @@ import { Column } from 'primereact/column';
 import { useNavigate } from 'react-router-dom';
 import { Button } from 'primereact/button';
 import { Toast } from 'primereact/toast';
-import { useState, useRef } from 'react';
-import StudentDetailsModal from '../features/students/modals/StudentDetailsModal.tsx';
-import StudentActionButtons from '../features/students/components/StudentActionButtons.tsx';
+import { useState, useRef, useMemo } from 'react';
+import StudentDetailsModal from '../common/modals/students/StudentDetailsModal.tsx';
+import StudentActionButtons from '../common/modals/students/StudentActionButtons.tsx';
 import { InputText } from 'primereact/inputtext';
+
+/**
+ * ARQUITECTURA DE DATOS REFACTORIZADA:
+ * 
+ * Estructura clara de excelData:
+ * - excelData[0] = datesExcelData    (fechas de las actividades)
+ * - excelData[1] = pointsExcelData   (puntos de cada actividad)
+ * - excelData[2...n] = studentsExcelData (datos de estudiantes)
+ * 
+ * tableData (usado en DataTable):
+ * - tableData[0] = pointsExcelData   (fila especial - rowIndex === 0)
+ * - tableData[1...n] = studentsExcelData (estudiantes - rowIndex > 0)
+ * 
+ * Beneficios de esta estructura:
+ * ✅ Separación clara de responsabilidades
+ * ✅ Reactualización automática con useMemo cuando cambian los estudiantes
+ * ✅ Lógica más legible en chooseBodyTemplate
+ * ✅ Mantiene la fila especial de puntos de manera explícita
+ */
 
 // Función para formatear los campos de las columnas
 const formatFieldName = (fieldName: string): string => {
@@ -22,6 +41,38 @@ const AlumnadoCatalogo = () => {
     const toast = useRef<Toast>(null);
     const [selectedData, setSelectedData] = useState<ExcelData | null>(null);
     const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);
+    const [searchTerm, setSearchTerm] = useState<string>('');
+
+    // Separación clara de tipos de datos
+    const datesExcelData = [...excelData].slice(0, 1)[0];
+    const pointsExcelData = [...excelData].slice(1, 2)[0];
+    const studentsExcelData = [...excelData].slice(2, excelData.length);
+
+    // Filtrar studentsExcelData basado en el término de búsqueda
+    const filteredStudentsExcelData = useMemo(() => {
+        if (!searchTerm.trim()) {
+            return studentsExcelData;
+        }
+        
+        return studentsExcelData.filter((student) => {
+            // Buscar en todos los campos del estudiante
+            return Object.values(student).some((value) => {
+                if (value === null || value === undefined) return false;
+                // Convertir a string y buscar (insensible a mayúsculas/minúsculas)
+                return String(value).toLowerCase().includes(searchTerm.toLowerCase());
+            });
+        });
+    }, [studentsExcelData, searchTerm]);
+
+    // Crear dataset específico para el DataTable con fila de puntos + estudiantes filtrados
+    // Se reactualiza automáticamente cuando cambian los datos de estudiantes o el término de búsqueda
+    const tableData = useMemo(() => {
+        // Concatenar puntos (fila especial) + estudiantes filtrados
+        // Esto mantiene la fila especial pero de manera más explícita
+        // tableData[0] = pointsExcelData (fila especial)
+        // tableData[1...n] = filteredStudentsExcelData (estudiantes filtrados)
+        return [pointsExcelData, ...filteredStudentsExcelData].filter(Boolean);
+    }, [pointsExcelData, filteredStudentsExcelData]);
 
     // Función para formatear los headers de las columnas
     const formatColumnHeader = (columnName: string): string => {
@@ -108,52 +159,57 @@ const AlumnadoCatalogo = () => {
     const chooseBodyTemplate = (excelColumn: string) => {
         // Retornamos una función que recibe el rowData y rowIndex
         return (rowData: ExcelData, props: { rowIndex: number }) => {
-            // Obtenemos el índice de la fila actual
             const { rowIndex } = props;
-            // // Para la primera fila
+            
+            // CASO ESPECIAL: Primera fila (rowIndex === 0) = Fila de PUNTOS
             if (rowIndex === 0) {
-                // Si el campo es un número, le damos formato
-                return rowOneContentDateTemplate(rowData, { field: excelColumn, rowIndex });
-            // Todas las demás filas
-            } else {
-                // Pintar columnas
-                 if (['ID'].includes(excelColumn)) {
-                    return columnContentValueIDTemplate(rowData, { field: excelColumn, rowIndex });
-                } else if (['CORREO.ELECTONICO', 'CORREO.ELECTONICO ', '"CORREO.ELECTONICO "'].includes(excelColumn)) {
-                    return columnContentValueMailTemplate(rowData, { field: excelColumn, rowIndex });
-                } else if (['NOMBRE', 'APELLIDO'].includes(excelColumn)) {
-                    return  <div className="w-full text-left font-semibold">
-                                { rowData[excelColumn] || '' }
-                            </div>;
-                } else {
-                    return  !['BUSQUEDA'].includes(excelColumn)
-                                ?   <div className="w-full text-right">
-                                        { 
-                                            new Intl.NumberFormat('en-US', {
-                                                minimumFractionDigits: 2,
-                                                maximumFractionDigits: 2,
-                                            }).format(
-                                                parseFloat((rowData[excelColumn] || '0') + '')
-                                            )
-                                        }
-                                    </div>
-                                :   null;
-                }
+                return renderPointsRowTemplate(rowData, excelColumn);
+            } 
+            // CASO NORMAL: Todas las demás filas = ESTUDIANTES
+            else {
+                return renderStudentRowTemplate(rowData, excelColumn, rowIndex);
             }
         };
     };
 
-    const rowOneContentDateTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
-        // Si el campo es una fecha, lo convertimos a formato DD/MM/YYYY
-        if (rowData[props.field] && (rowData[props.field] !== 'Puntos')) {
+    // Template para la fila especial de puntos (rowIndex === 0)
+    const renderPointsRowTemplate = (rowData: ExcelData, excelColumn: string) => {
+        // Si el campo es un número, le damos formato
+        if (rowData[excelColumn] && (rowData[excelColumn] !== 'Puntos')) {
             return  <div className="w-full text-right font-bold">
-                        { rowData[props.field] || 0 }
+                        { rowData[excelColumn] || 0 }
                     </div>;
         } else {
             // Etiqueta de fecha vacía o no válida
             return  <div className="w-full text-right font-bold">
-                        { rowData[props.field] || rowData[formatFieldName(props.field)] || '' }
+                        { rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '' }
                     </div>;
+        }
+    };
+
+    // Template para filas de estudiantes (rowIndex > 0)
+    const renderStudentRowTemplate = (rowData: ExcelData, excelColumn: string, rowIndex: number) => {
+        if (['ID'].includes(excelColumn)) {
+            return columnContentValueIDTemplate(rowData, { field: excelColumn, rowIndex });
+        } else if (['CORREO.ELECTONICO', 'CORREO.ELECTONICO ', '"CORREO.ELECTONICO "'].includes(excelColumn)) {
+            return columnContentValueMailTemplate(rowData, { field: excelColumn, rowIndex });
+        } else if (['NOMBRE', 'APELLIDO'].includes(excelColumn)) {
+            return  <div className="w-full text-left font-semibold">
+                        { rowData[excelColumn] || '' }
+                    </div>;
+        } else {
+            return  !['BUSQUEDA'].includes(excelColumn)
+                        ?   <div className="w-full text-right">
+                                { 
+                                    new Intl.NumberFormat('en-US', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                    }).format(
+                                        parseFloat((rowData[excelColumn] || '0') + '')
+                                    )
+                                }
+                            </div>
+                        :   null;
         }
     };
     
@@ -176,7 +232,7 @@ const AlumnadoCatalogo = () => {
                     icon="pi pi-eye"
                     className="p-button-rounded text-white bg-green-500 hover:bg-green-800 p-2"
                     style={{ fontWeight: 'bolder', color: 'lightgray' }}
-                    onClick={() => navigate(`/alumno/${rowData[props.field]}`)}
+                    onClick={() => navigate(`/alumno/${rowData[props.field]}/vista`)}
                     tooltip="Ver Alumno"
                 />
                 <Button 
@@ -278,6 +334,9 @@ const AlumnadoCatalogo = () => {
                         <div className="p-inputgroup">
                             <InputText
                                 className="bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                placeholder="Buscar estudiante..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                             />
                             <span className="p-inputgroup-addon">
                                 <span className='pi pi-search'></span>
@@ -288,6 +347,7 @@ const AlumnadoCatalogo = () => {
                         <Button 
                             label="Registrar Alumno"
                             icon="pi pi-file"
+                            onClick={() => navigate('/alumno/nuevo')}
                             className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
                         />
                     </div>
@@ -330,7 +390,7 @@ const AlumnadoCatalogo = () => {
                     <DataTable 
                         scrollable
                         rowClassName={getRowClassName}
-                        value={[...excelData].slice(1, excelData.length)}
+                        value={tableData}
                         tableStyle={{ minWidth: '100%', maxWidth: '100%' }}
                         className="custom-table"
                     >
@@ -355,6 +415,7 @@ const AlumnadoCatalogo = () => {
                         <Button 
                             label="Registrar Alumno"
                             icon="pi pi-file"
+                            onClick={() => navigate('/alumno/nuevo')}
                             className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
                         />
                     </div>
@@ -365,8 +426,8 @@ const AlumnadoCatalogo = () => {
             <StudentDetailsModal
                 visible={activeModal === 'black'}
                 onHide={() => setActiveModal(null)}
-                dates={[...excelData].slice(0, 1)[0]}
-                points={[...excelData].slice(1, 2)[0]}
+                points={pointsExcelData}
+                dates={datesExcelData}
                 data={selectedData}
                 variant="black"
             />
@@ -374,8 +435,8 @@ const AlumnadoCatalogo = () => {
             <StudentDetailsModal
                 visible={activeModal === 'green'}
                 onHide={() => setActiveModal(null)}
-                dates={[...excelData].slice(0, 1)[0]}
-                points={[...excelData].slice(1, 2)[0]}
+                points={pointsExcelData}
+                dates={datesExcelData}
                 data={selectedData}
                 variant="green"
             />
@@ -383,8 +444,8 @@ const AlumnadoCatalogo = () => {
             <StudentDetailsModal
                 visible={activeModal === 'purple'}
                 onHide={() => setActiveModal(null)}
-                dates={[...excelData].slice(0, 1)[0]}
-                points={[...excelData].slice(1, 2)[0]}
+                points={pointsExcelData}
+                dates={datesExcelData}
                 data={selectedData}
                 variant="purple"
             />
