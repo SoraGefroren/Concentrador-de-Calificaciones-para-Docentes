@@ -67,6 +67,7 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
     // Limpiar los datos actuales
     localStorage.removeItem('excelData');
     localStorage.removeItem('fileRoute');
+    localStorage.removeItem('columnConfig');
     localStorage.removeItem('extendedColumnConfig');
     
     // Mostrar mensaje informativo
@@ -79,7 +80,8 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
     
     // Cerrar modal y navegar a cargar hoja
     onHide();
-    navigate('/cargar-hoja');
+    // Navegar a la página de crear hoja
+    navigate('/crear-hoja');
   };
 
   const modalFooter = (
@@ -93,15 +95,7 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
           onClick={handleCloseFile}
           disabled={loading}
           tooltip="Cerrar el archivo actual"
-        />
-        <Button 
-          label="Crear Nuevo" 
-          icon="pi pi-plus" 
-          severity="success"
-          outlined
-          onClick={handleCreateNew}
-          disabled={loading}
-          tooltip="Limpiar datos y cargar nuevo archivo"
+          className='text-white bg-red-500 hover:bg-red-800 p-2'
         />
       </div>
       <Button 
@@ -110,6 +104,7 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
         outlined 
         onClick={onHide}
         disabled={loading}
+        className='text-white bg-red-500 hover:bg-red-800 p-2'
       />
     </div>
   );
@@ -129,9 +124,6 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
         <div className="flex flex-col gap-4">
           <div className="text-center">
             <i className="pi pi-file-excel text-4xl text-green-500 mb-3"></i>
-            <h3 className="text-lg font-semibold mb-2">
-              Gestionar Archivo Excel
-            </h3>
             <p className="text-gray-600 text-sm mb-4">
               Puede cargar un nuevo archivo para reemplazar los datos actuales, 
               cerrar el archivo actual, o crear un proyecto completamente nuevo.
@@ -148,6 +140,18 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
           ) : (
             <>
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 mb-4">
+                <Button 
+                  label="Crear nuevo archivo de Excel" 
+                  icon="pi pi-plus" 
+                  severity="success"
+                  outlined
+                  onClick={handleCreateNew}
+                  disabled={loading}
+                  tooltip="Limpiar datos y cargar nuevo archivo"
+                  className='text-white bg-green-500 hover:bg-green-800 p-2 w-full'
+                />
+              </div>
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 mb-4">
                 <FileUpload
                   mode="basic"
                   name="excel"
@@ -162,27 +166,6 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
                 <p className="text-xs text-gray-500 mt-2 text-center">
                   Formatos soportados: .xlsx, .xls (máximo 1MB)
                 </p>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-semibold text-blue-800 mb-2 flex items-center">
-                  <i className="pi pi-info-circle mr-2"></i>
-                  Opciones disponibles:
-                </h4>
-                <div className="space-y-2 text-sm text-blue-700">
-                  <div className="flex items-start">
-                    <i className="pi pi-upload mr-2 mt-1"></i>
-                    <span><strong>Reemplazar archivo:</strong> Seleccione un archivo arriba para reemplazar los datos actuales</span>
-                  </div>
-                  <div className="flex items-start">
-                    <i className="pi pi-sign-out mr-2 mt-1"></i>
-                    <span><strong>Cerrar archivo:</strong> Cierre el archivo actual con confirmación de seguridad</span>
-                  </div>
-                  <div className="flex items-start">
-                    <i className="pi pi-plus mr-2 mt-1"></i>
-                    <span><strong>Crear nuevo:</strong> Elimine todos los datos y comience un proyecto nuevo</span>
-                  </div>
-                </div>
               </div>
             </>
           )}

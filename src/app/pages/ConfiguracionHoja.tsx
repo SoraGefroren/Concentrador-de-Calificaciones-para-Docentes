@@ -13,12 +13,27 @@ import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
+import * as XLSX from 'xlsx';
 
 const ConfiguracionHoja = () => {
   const toast = useRef<Toast>(null);
   const navigate = useNavigate();
-  const { columnConfig } = useExcelContext();
-  const [config, setConfig] = useState<ColumnConfig>(columnConfig);
+  
+  // Intentar obtener datos del contexto si existen, pero no depender de ellos
+  const context = useExcelContext();
+  const existingColumnConfig = context?.columnConfig;
+  
+  // Función para obtener configuración por defecto
+  const getDefaultColumnConfig = (): ColumnConfig => ({
+    black: { numColumns: 7, rangeColumns: 'E1:K1', color: '#000000' },
+    green: { numColumns: 8, rangeColumns: 'L1:S1', color: '#92d050' },
+    purple: { numColumns: 7, rangeColumns: 'T1:Z1', color: '#7030a0' }
+  });
+
+  // Usar configuración existente o valores por defecto
+  const [config, setConfig] = useState<ColumnConfig>(() => {
+    return existingColumnConfig || getDefaultColumnConfig();
+  });
   
   // Estado para configuración extendida con períodos dinámicos
   const [extendedConfig, setExtendedConfig] = useState<ExtendedColumnConfig>(() => {
@@ -31,53 +46,55 @@ const ConfiguracionHoja = () => {
       }
     }
     
-    // Configuración por defecto basada en la configuración actual
+    // Configuración por defecto basada en la configuración actual o valores por defecto
+    const currentConfig = existingColumnConfig || getDefaultColumnConfig();
+    
     return {
       periods: [
         {
           id: 'black',
           name: 'Primer Período',
-          numColumns: config.black.numColumns,
-          rangeColumns: config.black.rangeColumns,
-          color: config.black.color,
+          numColumns: currentConfig.black.numColumns,
+          rangeColumns: currentConfig.black.rangeColumns,
+          color: currentConfig.black.color,
           order: 1,
-          columns: Array.from({ length: config.black.numColumns }, (_, i) => ({
+          columns: Array.from({ length: currentConfig.black.numColumns }, (_, i) => ({
             id: `black-${i}`,
             header: `ACTIVIDAD-${i + 1}`,
-            date: '01-ENE-22',
+            date: '01-ENE-24',
             points: 10
           }))
         },
         {
           id: 'green',
           name: 'Segundo Período',
-          numColumns: config.green.numColumns,
-          rangeColumns: config.green.rangeColumns,
-          color: config.green.color,
+          numColumns: currentConfig.green.numColumns,
+          rangeColumns: currentConfig.green.rangeColumns,
+          color: currentConfig.green.color,
           order: 2,
-          columns: Array.from({ length: config.green.numColumns }, (_, i) => ({
+          columns: Array.from({ length: currentConfig.green.numColumns }, (_, i) => ({
             id: `green-${i}`,
             header: `ACTIVIDAD-${i + 1}`,
-            date: '01-FEB-22',
+            date: '01-FEB-24',
             points: 10
           }))
         },
         {
           id: 'purple',
           name: 'Tercer Período',
-          numColumns: config.purple.numColumns,
-          rangeColumns: config.purple.rangeColumns,
-          color: config.purple.color,
+          numColumns: currentConfig.purple.numColumns,
+          rangeColumns: currentConfig.purple.rangeColumns,
+          color: currentConfig.purple.color,
           order: 3,
-          columns: Array.from({ length: config.purple.numColumns }, (_, i) => ({
+          columns: Array.from({ length: currentConfig.purple.numColumns }, (_, i) => ({
             id: `purple-${i}`,
             header: `ACTIVIDAD-${i + 1}`,
-            date: '01-MAR-22',
+            date: '01-MAR-24',
             points: 10
           }))
         }
       ],
-      fixedColumnsLeft: ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '],
+      fixedColumnsLeft: ['ID', 'NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO'],
       fixedColumnsRight: [
         { name: 'SUMA.PORCENTAJE.ACTIVIDADES', date: undefined, points: undefined },
         { name: 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', date: undefined, points: undefined },
@@ -423,22 +440,224 @@ const ConfiguracionHoja = () => {
     }));
   };
 
-  const handleSave = () => {
-    // Guardar ambas configuraciones en localStorage
-    localStorage.setItem('columnConfig', JSON.stringify(config));
-    localStorage.setItem('extendedColumnConfig', JSON.stringify(extendedConfig));
-    
-    toast.current?.show({
-      severity: 'success',
-      summary: 'Configuración guardada',
-      detail: 'Los cambios se aplicarán al recargar la página',
-      life: 3000
+  // Función para generar archivo Excel con la configuración aplicada
+  const generateExcelWithConfiguration = (): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      try {
+        // Crear un workbook
+        const wb = XLSX.utils.book_new();
+        
+        // Generar headers basados en la configuración
+        const headers: string[] = [];
+        
+        // Agregar columnas fijas izquierdas
+        extendedConfig.fixedColumnsLeft.forEach(colName => {
+          headers.push(colName);
+        });
+        
+        // Agregar columnas de períodos ordenados
+        const sortedPeriods = extendedConfig.periods.sort((a, b) => a.order - b.order);
+        sortedPeriods.forEach(period => {
+          period.columns.forEach(column => {
+            let headerName = column.header;
+            if (column.date && column.date !== '01-ENE-24') {
+              headerName += ` - ${column.date}`;
+            }
+            if (column.points && column.points !== 10) {
+              headerName += ` (${column.points} pts)`;
+            }
+            headers.push(headerName);
+          });
+        });
+        
+        // Agregar columnas fijas derechas
+        extendedConfig.fixedColumnsRight.forEach(col => {
+          let headerName = col.name;
+          if (col.date) {
+            headerName += ` - ${col.date}`;
+          }
+          if (col.points) {
+            headerName += ` (${col.points} pts)`;
+          }
+          headers.push(headerName);
+        });
+        
+        // Crear datos de ejemplo (5 estudiantes)
+        const studentData: (string | number)[][] = [];
+        studentData.push(headers); // Primera fila: headers
+        
+        // Agregar algunas filas de estudiantes de ejemplo
+        for (let i = 1; i <= 5; i++) {
+          const row: (string | number)[] = [];
+          
+          // Llenar columnas fijas izquierdas
+          extendedConfig.fixedColumnsLeft.forEach((colName) => {
+            switch (colName.toUpperCase()) {
+              case 'ID':
+                row.push(`EST${i.toString().padStart(3, '0')}`);
+                break;
+              case 'NOMBRE':
+                row.push(`Estudiante${i}`);
+                break;
+              case 'APELLIDO':
+                row.push(`Apellido${i}`);
+                break;
+              case 'CORREO.ELECTONICO':
+              case 'CORREO ELECTONICO':
+              case 'EMAIL':
+                row.push(`estudiante${i}@universidad.edu`);
+                break;
+              default:
+                row.push(`Dato${i}`);
+            }
+          });
+          
+          // Llenar columnas de períodos con valores en blanco
+          sortedPeriods.forEach(period => {
+            period.columns.forEach(() => {
+              row.push(''); // Dejar en blanco para que el profesor llene las calificaciones
+            });
+          });
+          
+          // Llenar columnas fijas derechas con fórmulas o valores en blanco
+          extendedConfig.fixedColumnsRight.forEach((col) => {
+            if (col.name.includes('SUMA') || col.name.includes('TOTAL') || col.name.includes('CALIFICACION')) {
+              row.push(''); // Dejar en blanco para fórmulas futuras
+            } else {
+              row.push(''); // Otros campos en blanco
+            }
+          });
+          
+          studentData.push(row);
+        }
+        
+        // Crear worksheet
+        const ws = XLSX.utils.aoa_to_sheet(studentData);
+        
+        // Agregar el worksheet al workbook
+        XLSX.utils.book_append_sheet(wb, ws, 'Calificaciones');
+        
+        // Generar el archivo
+        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        // Crear un File object
+        const file = new File([blob], 'hoja_calificaciones.xlsx', { 
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+        });
+        
+        resolve(file);
+      } catch (error) {
+        reject(error);
+      }
     });
-    
-    // Recargar después de un breve delay para mostrar el toast
-    setTimeout(() => {
-      window.location.reload();
-    }, 1000);
+  };
+
+  const handleSave = async () => {
+    // Validar configuración antes de proceder
+    const validationErrors = validateConfiguration();
+    if (validationErrors.length > 0) {
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error de validación',
+        detail: 'Por favor corrige los errores antes de guardar',
+        life: 5000
+      });
+      return;
+    }
+
+    try {
+      // Guardar configuraciones en localStorage
+      localStorage.setItem('columnConfig', JSON.stringify(config));
+      localStorage.setItem('extendedColumnConfig', JSON.stringify(extendedConfig));
+      
+      toast.current?.show({
+        severity: 'info',
+        summary: 'Generando archivo',
+        detail: 'Creando archivo Excel con la configuración...',
+        life: 3000
+      });
+
+      // Generar archivo Excel con la configuración
+      const excelFile = await generateExcelWithConfiguration();
+      
+      // Crear enlace para descargar el archivo
+      const url = URL.createObjectURL(excelFile);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'hoja_calificaciones.xlsx';
+      
+      // Simular click para descargar
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Limpiar URL
+      URL.revokeObjectURL(url);
+      
+      toast.current?.show({
+        severity: 'success',
+        summary: 'Archivo generado',
+        detail: 'El archivo Excel ha sido descargado. Ahora cargándolo en el sistema...',
+        life: 4000
+      });
+
+      // Simular el proceso de carga del archivo recién generado
+      setTimeout(async () => {
+        try {
+          if (context?.loadExcelFromFile) {
+            const excelData = await context.loadExcelFromFile(excelFile);
+            localStorage.setItem('excelData', JSON.stringify(excelData));
+            localStorage.setItem('fileRoute', 'true');
+            
+            toast.current?.show({
+              severity: 'success',
+              summary: 'Configuración aplicada',
+              detail: 'El archivo ha sido cargado con la nueva configuración',
+              life: 3000
+            });
+            
+            // Navegar al catálogo después de cargar
+            setTimeout(() => {
+              navigate('/');
+            }, 1000);
+          } else {
+            // Si no hay contexto, solo navegar a cargar hoja
+            toast.current?.show({
+              severity: 'warn',
+              summary: 'Archivo generado',
+              detail: 'El archivo fue descargado. Puedes cargarlo desde la página principal.',
+              life: 4000
+            });
+            
+            setTimeout(() => {
+              navigate('/cargar-hoja');
+            }, 1000);
+          }
+        } catch (error) {
+          console.error('Error al cargar el archivo generado:', error);
+          toast.current?.show({
+            severity: 'warn',
+            summary: 'Archivo generado',
+            detail: 'El archivo fue descargado pero debes cargarlo manualmente',
+            life: 4000
+          });
+          
+          setTimeout(() => {
+            navigate('/cargar-hoja');
+          }, 1000);
+        }
+      }, 2000);
+      
+    } catch (error) {
+      console.error('Error al generar el archivo:', error);
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'No se pudo generar el archivo Excel',
+        life: 5000
+      });
+    }
   };
 
   const validateConfiguration = () => {
@@ -496,8 +715,43 @@ const ConfiguracionHoja = () => {
   const errors = validateConfiguration();
   const preview = previewConfiguration();
 
-  return (
-    <Menu navBarTitle="Configuración de Hoja de datos">
+  // Determinar el título basado en si hay datos de Excel
+  const getPageTitle = () => {
+    const hasExcelData = localStorage.getItem('excelData');
+    return hasExcelData ? 'Configuración de Hoja de datos' : 'Crear Nueva Configuración';
+  };
+
+  // Determinar botones de navegación
+  const getNavigationButtons = () => {
+    const hasExcelData = localStorage.getItem('excelData');
+    
+    if (hasExcelData) {
+      return (
+        <Button 
+          label="Volver al catálogo" 
+          icon="pi pi-arrow-left"
+          onClick={() => navigate('/')}
+          className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
+        />
+      );
+    } else {
+      return (
+        <Button 
+          label="Volver a carga de archivos" 
+          icon="pi pi-arrow-left"
+          onClick={() => navigate('/cargar-hoja')}
+          className="p-button-secondary text-white bg-red-500 hover:bg-red-800 p-2"
+        />
+      );
+    }
+  };
+
+  // Determinar si hay datos de Excel para mostrar o no el Menu
+  const hasExcelData = localStorage.getItem('excelData');
+
+  // Contenido principal que se renderiza con o sin Menu
+  const mainContent = (
+    <>
       <Toast ref={toast} />
       <ConfirmDialog />
       <div className="p-4 max-w-7xl w-full">
@@ -512,18 +766,13 @@ const ConfiguracionHoja = () => {
           </div>
           <div className="flex gap-3">
             <Button
-              label="Guardar configuración"
-              icon="pi pi-save"
+              label="Generar archivo Excel"
+              icon="pi pi-download"
               className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
               onClick={handleSave}
               disabled={errors.length > 0}
             />
-            <Button 
-              label="Volver al catálogo" 
-              icon="pi pi-arrow-left"
-              onClick={() => navigate('/')}
-              className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
-            />
+            {getNavigationButtons()}
           </div>
         </div>
 
@@ -945,22 +1194,36 @@ const ConfiguracionHoja = () => {
         <div className="mt-6 flex justify-end">
           <div className="flex gap-3 pt-3">
             <Button
-              label="Guardar configuración"
-              icon="pi pi-save"
+              label="Generar archivo Excel"
+              icon="pi pi-download"
               className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
               onClick={handleSave}
               disabled={errors.length > 0}
             />
-            <Button 
-              label="Volver al catálogo" 
-              icon="pi pi-arrow-left"
-              onClick={() => navigate('/')}
-              className="p-button-secondary text-white bg-gray-500 hover:bg-gray-800 p-2"
-            />
+            {getNavigationButtons()}
           </div>
         </div>
       </div>
+    </>
+  );
+
+  // Renderizado condicional: con Menu si hay datos de Excel, sin Menu si no los hay
+  return hasExcelData ? (
+    <Menu navBarTitle={getPageTitle()}>
+      {mainContent}
     </Menu>
+  ) : (
+    <div className="min-h-screen bg-gray-100">
+      <div className="container w-full mx-auto py-8">
+        <div className="w-full text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-2">{getPageTitle()}</h1>
+          <p className="text-gray-600">Configura los períodos y columnas para tu hoja de calificaciones</p>
+        </div>
+        <div className="flex justify-center">
+          {mainContent}
+        </div>
+      </div>
+    </div>
   );
 };
 

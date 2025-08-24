@@ -14,8 +14,15 @@ export const ExcelProvider = ({ children }: { children: React.ReactNode }) => {
 
 export const useExcelContext = () => {
     const context = useContext(ExcelContext);
+    // No lanzar error si no existe contexto, permitir uso opcional
+    return context;
+};
+
+// Hook para uso obligatorio del contexto (para páginas que requieren datos)
+export const useRequiredExcelContext = () => {
+    const context = useContext(ExcelContext);
     if (context === undefined) {
-        throw new Error('useExcelContext must be used within an ExcelProvider');
+        throw new Error('useRequiredExcelContext must be used within an ExcelProvider');
     }
     return context;
 };

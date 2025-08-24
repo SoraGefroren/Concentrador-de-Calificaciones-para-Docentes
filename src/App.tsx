@@ -42,6 +42,10 @@ function App() {
           element={<ValidateAccessToRoute element={<ConfiguracionHoja />} />}
         />
         <Route
+          path="/crear-hoja"
+          element={<ConfiguracionHoja />}
+        />
+        <Route
           path="/cargar-hoja"
           element={<CargarHojaDeDatos />}
         />
