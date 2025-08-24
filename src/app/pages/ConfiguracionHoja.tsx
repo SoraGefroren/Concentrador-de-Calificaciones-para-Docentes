@@ -447,18 +447,42 @@ const ConfiguracionHoja = () => {
         // Crear un workbook
         const wb = XLSX.utils.book_new();
         
+        // ==================== HOJA 1: DATOS DE CALIFICACIONES ====================
+        
         // Generar headers basados en la configuración
         const headers: string[] = [];
+        let currentColumnIndex = 0;
+        const columnMapping: Array<{
+          columnIndex: number;
+          excelColumn: string;
+          type: 'fixed-left' | 'period' | 'fixed-right';
+          periodId?: string;
+          periodName?: string;
+          columnId?: string;
+          name: string;
+          date?: string;
+          points?: number;
+          color?: string;
+        }> = [];
         
         // Agregar columnas fijas izquierdas
         extendedConfig.fixedColumnsLeft.forEach(colName => {
           headers.push(colName);
+          columnMapping.push({
+            columnIndex: currentColumnIndex,
+            excelColumn: getExcelColumnName(currentColumnIndex + 1),
+            type: 'fixed-left',
+            name: colName
+          });
+          currentColumnIndex++;
         });
         
         // Agregar columnas de períodos ordenados
         const sortedPeriods = extendedConfig.periods.sort((a, b) => a.order - b.order);
         sortedPeriods.forEach(period => {
-          period.columns.forEach(column => {
+          const periodStartColumn = currentColumnIndex;
+          
+          period.columns.forEach((column) => {
             let headerName = column.header;
             if (column.date && column.date !== '01-ENE-24') {
               headerName += ` - ${column.date}`;
@@ -467,7 +491,34 @@ const ConfiguracionHoja = () => {
               headerName += ` (${column.points} pts)`;
             }
             headers.push(headerName);
+            
+            columnMapping.push({
+              columnIndex: currentColumnIndex,
+              excelColumn: getExcelColumnName(currentColumnIndex + 1),
+              type: 'period',
+              periodId: period.id,
+              periodName: period.name,
+              columnId: column.id,
+              name: column.header,
+              date: column.date,
+              points: column.points,
+              color: period.color
+            });
+            currentColumnIndex++;
           });
+          
+          // Actualizar el rango del período
+          const periodEndColumn = currentColumnIndex - 1;
+          const updatedPeriod = {
+            ...period,
+            rangeColumns: `${getExcelColumnName(periodStartColumn + 1)}1:${getExcelColumnName(periodEndColumn + 1)}1`
+          };
+          
+          // Actualizar la configuración con el rango calculado
+          setExtendedConfig(prev => ({
+            ...prev,
+            periods: prev.periods.map(p => p.id === period.id ? updatedPeriod : p)
+          }));
         });
         
         // Agregar columnas fijas derechas
@@ -480,6 +531,16 @@ const ConfiguracionHoja = () => {
             headerName += ` (${col.points} pts)`;
           }
           headers.push(headerName);
+          
+          columnMapping.push({
+            columnIndex: currentColumnIndex,
+            excelColumn: getExcelColumnName(currentColumnIndex + 1),
+            type: 'fixed-right',
+            name: col.name,
+            date: col.date,
+            points: col.points
+          });
+          currentColumnIndex++;
         });
         
         // Crear datos de ejemplo (5 estudiantes)
@@ -531,18 +592,144 @@ const ConfiguracionHoja = () => {
           studentData.push(row);
         }
         
-        // Crear worksheet
-        const ws = XLSX.utils.aoa_to_sheet(studentData);
+        // Crear worksheet de datos
+        const wsData = XLSX.utils.aoa_to_sheet(studentData);
+        XLSX.utils.book_append_sheet(wb, wsData, 'Calificaciones');
         
-        // Agregar el worksheet al workbook
-        XLSX.utils.book_append_sheet(wb, ws, 'Calificaciones');
+        // ==================== HOJA 2: CONFIGURACIÓN ====================
+        
+        const configData: (string | number)[][] = [];
+        
+        // Encabezados de la configuración
+        configData.push([
+          'CONFIGURACIÓN DEL SISTEMA DE CALIFICACIONES',
+          '', '', '', '', '', ''
+        ]);
+        configData.push(['']); // Fila vacía
+        
+        // Información general
+        configData.push(['Información General']);
+        configData.push(['Fecha de creación:', new Date().toLocaleDateString()]);
+        configData.push(['Total de columnas:', headers.length]);
+        configData.push(['Total de períodos:', extendedConfig.periods.length]);
+        configData.push(['']); // Fila vacía
+        
+        // Configuración de períodos
+        configData.push(['CONFIGURACIÓN DE PERÍODOS']);
+        configData.push([
+          'ID Período', 'Nombre', 'Orden', 'Color', 'Num. Columnas', 'Rango Excel', 'Columna Inicio', 'Columna Fin'
+        ]);
+        
+        sortedPeriods.forEach(period => {
+          const startCol = columnMapping.find(c => c.periodId === period.id && c.type === 'period')?.excelColumn || '';
+          const endCol = columnMapping.filter(c => c.periodId === period.id && c.type === 'period').pop()?.excelColumn || '';
+          
+          configData.push([
+            period.id,
+            period.name,
+            period.order,
+            period.color,
+            period.numColumns,
+            period.rangeColumns,
+            startCol,
+            endCol
+          ]);
+        });
+        
+        configData.push(['']); // Fila vacía
+        
+        // Detalle de columnas por período
+        configData.push(['DETALLE DE ACTIVIDADES POR PERÍODO']);
+        configData.push([
+          'Período', 'Columna Excel', 'Nombre Actividad', 'Fecha', 'Puntos', 'Color Período'
+        ]);
+        
+        sortedPeriods.forEach(period => {
+          period.columns.forEach(column => {
+            const mapping = columnMapping.find(c => c.columnId === column.id);
+            configData.push([
+              period.name,
+              mapping?.excelColumn || '',
+              column.header,
+              column.date,
+              column.points,
+              period.color
+            ]);
+          });
+        });
+        
+        configData.push(['']); // Fila vacía
+        
+        // Configuración de columnas fijas
+        configData.push(['COLUMNAS FIJAS IZQUIERDAS']);
+        configData.push(['Columna Excel', 'Nombre', 'Tipo']);
+        
+        extendedConfig.fixedColumnsLeft.forEach((col) => {
+          const mapping = columnMapping.find(c => c.name === col && c.type === 'fixed-left');
+          configData.push([
+            mapping?.excelColumn || '',
+            col,
+            'Fija Izquierda'
+          ]);
+        });
+        
+        configData.push(['']); // Fila vacía
+        
+        configData.push(['COLUMNAS FIJAS DERECHAS']);
+        configData.push(['Columna Excel', 'Nombre', 'Fecha', 'Puntos', 'Tipo']);
+        
+        extendedConfig.fixedColumnsRight.forEach(col => {
+          const mapping = columnMapping.find(c => c.name === col.name && c.type === 'fixed-right');
+          configData.push([
+            mapping?.excelColumn || '',
+            col.name,
+            col.date || '',
+            col.points || '',
+            'Fija Derecha'
+          ]);
+        });
+        
+        configData.push(['']); // Fila vacía
+        
+        // Mapeo completo de columnas
+        configData.push(['MAPEO COMPLETO DE COLUMNAS']);
+        configData.push([
+          'Índice', 'Columna Excel', 'Tipo', 'Nombre', 'Período', 'Fecha', 'Puntos', 'Color'
+        ]);
+        
+        columnMapping.forEach(mapping => {
+          configData.push([
+            mapping.columnIndex + 1,
+            mapping.excelColumn,
+            mapping.type,
+            mapping.name,
+            mapping.periodName || '',
+            mapping.date || '',
+            mapping.points || '',
+            mapping.color || ''
+          ]);
+        });
+        
+        configData.push(['']); // Fila vacía
+        
+        // Guardar configuración en formato JSON para fácil importación
+        configData.push(['CONFIGURACIÓN JSON (Para importar)']);
+        configData.push(['extendedConfig:', JSON.stringify(extendedConfig, null, 2)]);
+        configData.push(['']);
+        configData.push(['config:', JSON.stringify(config, null, 2)]);
+        
+        // Crear worksheet de configuración
+        const wsConfig = XLSX.utils.aoa_to_sheet(configData);
+        XLSX.utils.book_append_sheet(wb, wsConfig, 'Configuracion');
+        
+        // ==================== GENERAR ARCHIVO ====================
         
         // Generar el archivo
         const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
         const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         
         // Crear un File object
-        const file = new File([blob], 'hoja_calificaciones.xlsx', { 
+        const file = new File([blob], 'hoja_calificaciones_configurada.xlsx', { 
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
         });
         
@@ -574,7 +761,7 @@ const ConfiguracionHoja = () => {
       toast.current?.show({
         severity: 'info',
         summary: 'Generando archivo',
-        detail: 'Creando archivo Excel con la configuración...',
+        detail: 'Creando archivo Excel con datos y configuración completa...',
         life: 3000
       });
 
@@ -585,7 +772,7 @@ const ConfiguracionHoja = () => {
       const url = URL.createObjectURL(excelFile);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'hoja_calificaciones.xlsx';
+      link.download = 'hoja_calificaciones_configurada.xlsx';
       
       // Simular click para descargar
       document.body.appendChild(link);
@@ -598,7 +785,7 @@ const ConfiguracionHoja = () => {
       toast.current?.show({
         severity: 'success',
         summary: 'Archivo generado',
-        detail: 'El archivo Excel ha sido descargado. Ahora cargándolo en el sistema...',
+        detail: 'Excel con hoja de datos y configuración descargado. Cargándolo en el sistema...',
         life: 4000
       });
 
