@@ -69,7 +69,7 @@ const CargarHojaDeDatos = () => {
                             <div className="border-2 border-dashed border-blue-300 rounded-lg p-4 mb-4">
                                 <Button 
                                     label="Crear nueva hoja de calificaciones" 
-                                    icon="pi pi-plus" 
+                                    icon="pi pi-file" 
                                     severity="success"
                                     outlined
                                     onClick={handleCreateNew}
