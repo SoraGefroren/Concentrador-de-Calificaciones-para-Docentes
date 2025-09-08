@@ -21,7 +21,6 @@ const CloseFileModal = ({ visible, onHide }: CloseFileModalProps) => {
     // Limpiar todos los datos relacionados con el archivo Excel del localStorage
     localStorage.removeItem('excelData');
     localStorage.removeItem('fileRoute');
-    localStorage.removeItem('extendedColumnConfig');
     
     // Mostrar mensaje de éxito
     toast.current?.show({

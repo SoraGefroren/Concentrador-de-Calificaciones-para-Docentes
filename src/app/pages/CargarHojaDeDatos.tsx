@@ -16,10 +16,9 @@ const CargarHojaDeDatos = () => {
 
     const handleCreateNew = () => {
         // Limpiar cualquier configuración previa
-        localStorage.removeItem('excelData');
         localStorage.removeItem('fileRoute');
+        localStorage.removeItem('excelData');
         localStorage.removeItem('columnConfig');
-        localStorage.removeItem('extendedColumnConfig');
         
         // Navegar a la página de crear hoja
         navigate('/crear-hoja');

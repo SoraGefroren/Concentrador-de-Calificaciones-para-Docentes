@@ -65,10 +65,9 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
 
   const handleCreateNew = () => {
     // Limpiar los datos actuales
-    localStorage.removeItem('excelData');
     localStorage.removeItem('fileRoute');
+    localStorage.removeItem('excelData');
     localStorage.removeItem('columnConfig');
-    localStorage.removeItem('extendedColumnConfig');
     
     // Mostrar mensaje informativo
     toast.current?.show({

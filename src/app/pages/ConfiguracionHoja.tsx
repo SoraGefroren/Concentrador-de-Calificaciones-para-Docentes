@@ -1,7 +1,7 @@
 import Menu from '../common/Menu.tsx';
 import { useRef, useState } from 'react';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
-import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typeInfoGroup, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
+import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
@@ -26,21 +26,6 @@ const getExcelColumnName = (columnNumber: number): string => {
   return columnName;
 };
 
-const getColumnNumber = (columnName: string): number => {
-  let result = 0;
-  for (let i = 0; i < columnName.length; i++) {
-    result = result * 26 + (columnName.charCodeAt(i) - 64);
-  }
-  return result;
-};
-
-const calculateRange = (startColumn: string, numColumns: number): string => {
-  const startNum = getColumnNumber(startColumn);
-  const endNum = startNum + numColumns - 1;
-  const endColumn = getExcelColumnName(endNum);
-  return `${startColumn}1:${endColumn}1`;
-};
-
 const ConfiguracionHoja = () => {
   const toast = useRef<Toast>(null);
   const navigate = useNavigate();
@@ -51,7 +36,7 @@ const ConfiguracionHoja = () => {
   const columnConfig: ColumnGroupConfig[] = context?.columnConfig || [];
 
   // Usar configuración existente o valores por defecto
-  const [config, setConfig] = useState<ColumnGroupConfig[]>(() => {
+  const [colConfig, setConfig] = useState<ColumnGroupConfig[]>(() => {
     return columnConfig || [];
   });
 
@@ -186,9 +171,11 @@ const ConfiguracionHoja = () => {
       }
       // Calcular la posición inicial del nuevo grupo
       if (lastColumnConfig) {
+        // Insertar el nuevo grupo después del último grupo del mismo tipo
         const lastColumnIndex = columnConfig.indexOf(lastColumnConfig) + 1;
         columnConfig.splice(lastColumnIndex, 0, newColumnGroup);
       } else {
+        // Lanzar mensaje de error
         toast.current?.show({
           severity: 'error',
           summary: 'Error al agregar un nuevo periodo',
@@ -197,6 +184,7 @@ const ConfiguracionHoja = () => {
         });
       }
     } else {
+      // Lanzar mensaje de error
       toast.current?.show({
         severity: 'error',
         summary: 'Error al agregar un nuevo periodo',
@@ -205,7 +193,9 @@ const ConfiguracionHoja = () => {
       });
     }
     // Recalcular rangos después de agregar un nuevo grupo
+    setConfig(columnConfig ? [...columnConfig] : []);
     const colConfigIndexs = recalculateColumnGroupRanges();
+    // Recuperar el indice del nuevo grupo
     const newGroupIndex = colConfigIndexs.newGroupIndex;
     const newId = columnConfig ? columnConfig[newGroupIndex]?.id || '' : '';
     // Marcar el nuevo período como recién agregado
@@ -231,6 +221,7 @@ const ConfiguracionHoja = () => {
             // Actualizar la configuración de los grupos de columnas
             setConfig(columnConfig.filter(p => p.id !== groupId));
             recalculateColumnGroupRanges();
+            // Lanzar mensaje de exito
             toast.current?.show({
               severity: 'info',
               summary: 'Período eliminado',
@@ -238,6 +229,7 @@ const ConfiguracionHoja = () => {
               life: 3000
             });
           } else {
+            // Lanzar mensaje de error
             toast.current?.show({
               severity: 'error',
               summary: 'Error al eliminar período',
@@ -275,7 +267,9 @@ const ConfiguracionHoja = () => {
     };
     columnConfig[groupIndex].columns.push(newColumn);
     // Recalcular rangos después de agregar un nuevo grupo
+    setConfig(columnConfig ? [...columnConfig] : []);
     const colConfigIndexs = recalculateColumnGroupRanges();
+    // Recuperar el indice del nuevo grupo
     const newGroupIndex = colConfigIndexs.newGroupIndex;
     const newColIndex = colConfigIndexs.newColIndex;
     const newColumnId = columnConfig ? columnConfig[newGroupIndex]?.columns[newColIndex]?.id || '' : '';
@@ -300,13 +294,14 @@ const ConfiguracionHoja = () => {
           // Buscar el grupo correspondiente
           const group = columnConfig.find(p => p.id === groupId);
           const column = group?.columns.find(c => c.id === columnId);
-          if ((group?.columns.length || 0) > 1) {
+          if (group && (group?.columns.length || 0) > 1) {
             const groupIndex = columnConfig.indexOf(group!);
             const columnIndex = group.columns.indexOf(column!);
             columnConfig[groupIndex].columns.splice(columnIndex, 1);
             // Actualizar la configuración de los grupos de columnas
             setConfig(columnConfig);
             recalculateColumnGroupRanges();
+            // Lanzar mensaje de exito
             toast.current?.show({
               severity: 'info',
               summary: 'Columna eliminada',
@@ -314,6 +309,7 @@ const ConfiguracionHoja = () => {
               life: 3000
             });
           } else {
+            // Lanzar mensaje de error
             toast.current?.show({
               severity: 'error',
               summary: 'Error al eliminar columna',
@@ -338,286 +334,97 @@ const ConfiguracionHoja = () => {
       );
   };
 
-  // Función para generar archivo Excel con la configuración aplicada
-  const generateExcelWithConfiguration = (): Promise<File> => {
+  // Función para actualizar la configuración de un archivo de Excel
+  const updatedExcelFileConfiguration = (fileName: string): Promise<File> => {
     return new Promise((resolve, reject) => {
       try {
+        
+        // ==================== ===================== ====================
+
         // Crear un workbook
         const wb = XLSX.utils.book_new();
         
         // ==================== HOJA 1: DATOS DE CALIFICACIONES ====================
         
-        // Generar headers basados en la configuración
-        const headers: string[] = [];
-        let currentColumnIndex = 0;
-        const columnMapping: Array<{
-          columnIndex: number;
-          excelColumn: string;
-          type: 'info' | 'period' | 'columns';
-          periodId?: string;
-          periodName?: string;
-          columnId?: string;
-          name: string;
-          date?: string;
-          points?: number;
-          color?: string;
-        }> = [];
-        
-        // Agregar columnas fijas izquierdas
-        columnConfig.forEach(colsConfig => {
-          headers.push(colName);
-          columnMapping.push({
-            columnIndex: currentColumnIndex,
-            excelColumn: getExcelColumnName(currentColumnIndex + 1),
-            type: 'fixed-left',
-            name: colName
+        // Preparar lista de encabezados de la hoja de datos
+        const arrayHeaderFields: string[] = [];
+
+        // Construir encabezado de la primera hoja
+        const matrixExcelData: (string | number)[][] = [[],[],[]];
+        columnConfig.forEach(groupConfig => {
+          // Se recorren las columnas que conforman al grupo
+          groupConfig.columns.forEach(excelConfig => {
+            // Se insertan los encabezados de las columnas (Titulo, Fecha, Puntos)
+            matrixExcelData[0].push(excelConfig.label || '');
+            matrixExcelData[1].push(excelConfig.date || '');
+            matrixExcelData[2].push(
+              (excelConfig.points == 0 || excelConfig.points)
+                ? excelConfig.points
+                : '');
+            // Se crear un arreglo con los nombres de las columnas
+            arrayHeaderFields.push(excelConfig.label || '');
           });
-          currentColumnIndex++;
         });
-        
-        // Agregar columnas de períodos ordenados
-        const sortedPeriods = extendedConfig.periods.sort((a, b) => a.order - b.order);
-        sortedPeriods.forEach(period => {
-          const periodStartColumn = currentColumnIndex;
-          
-          period.columns.forEach((column) => {
-            let headerName = column.header;
-            if (column.date && column.date !== '01-ENE-24') {
-              headerName += ` - ${column.date}`;
-            }
-            if (column.points && column.points !== 10) {
-              headerName += ` (${column.points} pts)`;
-            }
-            headers.push(headerName);
-            
-            columnMapping.push({
-              columnIndex: currentColumnIndex,
-              excelColumn: getExcelColumnName(currentColumnIndex + 1),
-              type: 'period',
-              periodId: period.id,
-              periodName: period.name,
-              columnId: column.id,
-              name: column.header,
-              date: column.date,
-              points: column.points,
-              color: period.color
-            });
-            currentColumnIndex++;
-          });
-          
-          // Actualizar el rango del período
-          const periodEndColumn = currentColumnIndex - 1;
-          const updatedPeriod = {
-            ...period,
-            rangeColumns: `${getExcelColumnName(periodStartColumn + 1)}1:${getExcelColumnName(periodEndColumn + 1)}1`
-          };
-          
-          // Actualizar la configuración con el rango calculado
-          setExtendedConfig(prev => ({
-            ...prev,
-            periods: prev.periods.map(p => p.id === period.id ? updatedPeriod : p)
-          }));
-        });
-        
-        // Agregar columnas fijas derechas
-        extendedConfig.fixedColumnsRight.forEach(col => {
-          let headerName = col.name;
-          if (col.date) {
-            headerName += ` - ${col.date}`;
-          }
-          if (col.points) {
-            headerName += ` (${col.points} pts)`;
-          }
-          headers.push(headerName);
-          
-          columnMapping.push({
-            columnIndex: currentColumnIndex,
-            excelColumn: getExcelColumnName(currentColumnIndex + 1),
-            type: 'fixed-right',
-            name: col.name,
-            date: col.date,
-            points: col.points
-          });
-          currentColumnIndex++;
-        });
-        
-        // Crear datos de ejemplo (5 estudiantes)
-        const studentData: (string | number)[][] = [];
-        studentData.push(headers); // Primera fila: headers
-        
-        // Agregar algunas filas de estudiantes de ejemplo
-        for (let i = 1; i <= 5; i++) {
-          const row: (string | number)[] = [];
-          
-          // Llenar columnas fijas izquierdas
-          extendedConfig.fixedColumnsLeft.forEach((colName) => {
-            switch (colName.toUpperCase()) {
-              case 'ID':
-                row.push(`EST${i.toString().padStart(3, '0')}`);
-                break;
-              case 'NOMBRE':
-                row.push(`Estudiante${i}`);
-                break;
-              case 'APELLIDO':
-                row.push(`Apellido${i}`);
-                break;
-              case 'CORREO.ELECTONICO':
-              case 'CORREO ELECTONICO':
-              case 'EMAIL':
-                row.push(`estudiante${i}@universidad.edu`);
-                break;
-              default:
-                row.push(`Dato${i}`);
-            }
-          });
-          
-          // Llenar columnas de períodos con valores en blanco
-          sortedPeriods.forEach(period => {
-            period.columns.forEach(() => {
-              row.push(''); // Dejar en blanco para que el profesor llene las calificaciones
+        if (excelData && (excelData.length > 0) && (arrayHeaderFields.length > 0)) {
+          excelData.forEach((rowData) => {
+            // Se inserta una nueva fila
+            matrixExcelData.push([]);
+            const lastIndex = matrixExcelData.length - 1;
+            // Se recorre cada columna para agregar los datos
+            arrayHeaderFields.forEach((headerField) => {
+              debugger;
+              matrixExcelData[lastIndex].push(rowData[headerField] || '');
             });
           });
-          
-          // Llenar columnas fijas derechas con fórmulas o valores en blanco
-          extendedConfig.fixedColumnsRight.forEach((col) => {
-            if (col.name.includes('SUMA') || col.name.includes('TOTAL') || col.name.includes('CALIFICACION')) {
-              row.push(''); // Dejar en blanco para fórmulas futuras
-            } else {
-              row.push(''); // Otros campos en blanco
-            }
-          });
-          
-          studentData.push(row);
         }
-        
+
+        const wsData = XLSX.utils.aoa_to_sheet(matrixExcelData);
+
+        // ==================== ===================== ====================
+
         // Crear worksheet de datos
-        const wsData = XLSX.utils.aoa_to_sheet(studentData);
         XLSX.utils.book_append_sheet(wb, wsData, 'Calificaciones');
         
         // ==================== HOJA 2: CONFIGURACIÓN ====================
         
-        const configData: (string | number)[][] = [];
-        
-        // Encabezados de la configuración
-        configData.push([
-          'CONFIGURACIÓN DEL SISTEMA DE CALIFICACIONES',
-          '', '', '', '', '', ''
-        ]);
-        configData.push(['']); // Fila vacía
-        
-        // Información general
-        configData.push(['Información General']);
-        configData.push(['Fecha de creación:', new Date().toLocaleDateString()]);
-        configData.push(['Total de columnas:', headers.length]);
-        configData.push(['Total de períodos:', extendedConfig.periods.length]);
-        configData.push(['']); // Fila vacía
-        
-        // Configuración de períodos
-        configData.push(['CONFIGURACIÓN DE PERÍODOS']);
-        configData.push([
-          'ID Período', 'Nombre', 'Orden', 'Color', 'Num. Columnas', 'Rango Excel', 'Columna Inicio', 'Columna Fin'
-        ]);
-        
-        sortedPeriods.forEach(period => {
-          const startCol = columnMapping.find(c => c.periodId === period.id && c.type === 'period')?.excelColumn || '';
-          const endCol = columnMapping.filter(c => c.periodId === period.id && c.type === 'period').pop()?.excelColumn || '';
-          
-          configData.push([
-            period.id,
-            period.name,
-            period.order,
-            period.color,
-            period.numColumns,
-            period.rangeColumns,
-            startCol,
-            endCol
+        // Construir la configuración detallada
+        const matrixConfigData: (string | number)[][] = [];
+        columnConfig.forEach(groupConfig => {
+          // Se inserta el encabezado de la configuración
+          matrixConfigData.push([
+            'Grupo', groupConfig.label
           ]);
-        });
-        
-        configData.push(['']); // Fila vacía
-        
-        // Detalle de columnas por período
-        configData.push(['DETALLE DE ACTIVIDADES POR PERÍODO']);
-        configData.push([
-          'Período', 'Columna Excel', 'Nombre Actividad', 'Fecha', 'Puntos', 'Color Período'
-        ]);
-        
-        sortedPeriods.forEach(period => {
-          period.columns.forEach(column => {
-            const mapping = columnMapping.find(c => c.columnId === column.id);
-            configData.push([
-              period.name,
-              mapping?.excelColumn || '',
-              column.header,
-              column.date,
-              column.points,
-              period.color
+          matrixConfigData.push([
+            '', 'Columnas', 'Color', 'Tipo'
+          ]);
+          matrixConfigData.push([
+            '', groupConfig.id, groupConfig.color, groupConfig.type
+          ]);
+          // Se recorren las columnas que conforman al grupo
+          groupConfig.columns.forEach(excelConfig => {
+            // Se insertan los encabezados de las columnas
+            matrixConfigData.push([
+              '', '', 'Encabezado', excelConfig.label
+            ]);
+            matrixConfigData.push([
+              '', '', '', 'Columna', 'Fecha', 'Puntos'
+            ]);
+            matrixConfigData.push([
+              '', '', '', excelConfig.id,
+              (excelConfig.date || ''),
+              ((excelConfig.points == 0 || excelConfig.points)
+                  ? excelConfig.points
+                  : '')
             ]);
           });
-        });
-        
-        configData.push(['']); // Fila vacía
-        
-        // Configuración de columnas fijas
-        configData.push(['COLUMNAS FIJAS IZQUIERDAS']);
-        configData.push(['Columna Excel', 'Nombre', 'Tipo']);
-        
-        extendedConfig.fixedColumnsLeft.forEach((col) => {
-          const mapping = columnMapping.find(c => c.name === col && c.type === 'fixed-left');
-          configData.push([
-            mapping?.excelColumn || '',
-            col,
-            'Fija Izquierda'
+          // Se inserta marca para el fin del grupo de la configuración
+          matrixConfigData.push([
+            '...'
           ]);
         });
-        
-        configData.push(['']); // Fila vacía
-        
-        configData.push(['COLUMNAS FIJAS DERECHAS']);
-        configData.push(['Columna Excel', 'Nombre', 'Fecha', 'Puntos', 'Tipo']);
-        
-        extendedConfig.fixedColumnsRight.forEach(col => {
-          const mapping = columnMapping.find(c => c.name === col.name && c.type === 'fixed-right');
-          configData.push([
-            mapping?.excelColumn || '',
-            col.name,
-            col.date || '',
-            col.points || '',
-            'Fija Derecha'
-          ]);
-        });
-        
-        configData.push(['']); // Fila vacía
-        
-        // Mapeo completo de columnas
-        configData.push(['MAPEO COMPLETO DE COLUMNAS']);
-        configData.push([
-          'Índice', 'Columna Excel', 'Tipo', 'Nombre', 'Período', 'Fecha', 'Puntos', 'Color'
-        ]);
-        
-        columnMapping.forEach(mapping => {
-          configData.push([
-            mapping.columnIndex + 1,
-            mapping.excelColumn,
-            mapping.type,
-            mapping.name,
-            mapping.periodName || '',
-            mapping.date || '',
-            mapping.points || '',
-            mapping.color || ''
-          ]);
-        });
-        
-        configData.push(['']); // Fila vacía
-        
-        // Guardar configuración en formato JSON para fácil importación
-        configData.push(['CONFIGURACIÓN JSON (Para importar)']);
-        configData.push(['extendedConfig:', JSON.stringify(extendedConfig, null, 2)]);
-        configData.push(['']);
-        configData.push(['config:', JSON.stringify(config, null, 2)]);
         
         // Crear worksheet de configuración
-        const wsConfig = XLSX.utils.aoa_to_sheet(configData);
+        const wsConfig = XLSX.utils.aoa_to_sheet(matrixConfigData);
         XLSX.utils.book_append_sheet(wb, wsConfig, 'Configuracion');
         
         // ==================== GENERAR ARCHIVO ====================
@@ -627,7 +434,7 @@ const ConfiguracionHoja = () => {
         const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         
         // Crear un File object
-        const file = new File([blob], 'hoja_calificaciones_configurada.xlsx', { 
+        const file = new File([blob], fileName, { 
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
         });
         
@@ -638,14 +445,14 @@ const ConfiguracionHoja = () => {
     });
   };
 
-  const handleSave = async () => {
-    // Validar configuración antes de proceder
-    const validationErrors = validateConfiguration();
-    if (validationErrors.length > 0) {
+  const saveExcelFileConfiguration = async () => {
+    // Validar que cada período tenga al menos una columna
+    const periodsWithoutColumns = columnConfig.filter(g => g.columns.length < 1);
+    if (periodsWithoutColumns.length > 0) {
       toast.current?.show({
         severity: 'error',
         summary: 'Error de validación',
-        detail: 'Por favor corrige los errores antes de guardar',
+        detail: 'Todos los períodos deben tener al menos una columna',
         life: 5000
       });
       return;
@@ -653,24 +460,24 @@ const ConfiguracionHoja = () => {
 
     try {
       // Guardar configuraciones en localStorage
-      localStorage.setItem('columnConfig', JSON.stringify(config));
-      localStorage.setItem('extendedColumnConfig', JSON.stringify(extendedConfig));
+      localStorage.setItem('columnConfig', JSON.stringify(columnConfig));
       
       toast.current?.show({
         severity: 'info',
-        summary: 'Generando archivo',
+        summary: 'Generando archivo actualizado',
         detail: 'Creando archivo Excel con datos y configuración completa...',
         life: 3000
       });
 
       // Generar archivo Excel con la configuración
-      const excelFile = await generateExcelWithConfiguration();
+      const fileNameXLS = 'CONC._CALIF._X°Y_.xlsx';
+      const excelFile = await updatedExcelFileConfiguration(fileNameXLS);
       
       // Crear enlace para descargar el archivo
       const url = URL.createObjectURL(excelFile);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'hoja_calificaciones_configurada.xlsx';
+      link.download = fileNameXLS;
       
       // Simular click para descargar
       document.body.appendChild(link);
@@ -682,7 +489,7 @@ const ConfiguracionHoja = () => {
       
       toast.current?.show({
         severity: 'success',
-        summary: 'Archivo generado',
+        summary: 'Actualización de archivo generada',
         detail: 'Excel con hoja de datos y configuración descargado. Cargándolo en el sistema...',
         life: 4000
       });
@@ -743,18 +550,6 @@ const ConfiguracionHoja = () => {
         life: 5000
       });
     }
-  };
-
-  const validateConfiguration = () => {
-    const errors = [];
-    
-    // Validar que cada período tenga al menos una columna
-    const periodsWithoutColumns = extendedConfig.periods.filter(p => p.numColumns < 1);
-    if (periodsWithoutColumns.length > 0) {
-      errors.push('Todos los períodos deben tener al menos una columna');
-    }
-    
-    return errors;
   };
 
   const previewConfiguration = () => {
