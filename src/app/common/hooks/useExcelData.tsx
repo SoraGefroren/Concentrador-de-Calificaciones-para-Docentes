@@ -14,14 +14,16 @@ export interface ColumnExcelConfig {
     label: string;          // Nombre de la columna
     date: string | null;    // Fecha del grupo de columnas
     points: number | null;  // Puntos del grupo de columnas;
+    isNew?: boolean;        // Indica si la columna es nueva (no guardada aún)
 }
 
 export interface ColumnGroupConfig {
-    id: string;     // Rango de las Columnas, Ejemplo: A1:D1, F1:L1
-    color: string;  // Color de fondo del grupo de columnas
-    label: string;  // Nombre del grupo de columnas
+    id: string;         // Rango de las Columnas, Ejemplo: A1:D1, F1:L1
+    color: string;      // Color de fondo del grupo de columnas
+    label: string;      // Nombre del grupo de columnas
     columns: Array<ColumnExcelConfig>;
     type: 'info' | 'period' | 'columns';   // Tipo de grupo de columnas
+    isNew?: boolean;    // Indica si el grupo es nuevo (no guardado aún)
 }
 
 export const useExcelData = () => {

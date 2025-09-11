@@ -13,3 +13,10 @@ export const ValidateAccessToRoute = ({ element }: ValidateAccessToRouteProps) =
     }
     return element;
 };
+
+export const RestartLocalStorage = async ({ context, excelFile }: any) => {
+    
+    const excelData = await context.loadExcelFromFile(excelFile);
+    localStorage.setItem('excelData', JSON.stringify(excelData));
+    localStorage.setItem('fileRoute', 'true');
+};

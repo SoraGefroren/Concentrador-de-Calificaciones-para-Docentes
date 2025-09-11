@@ -13,7 +13,7 @@ import ConfiguracionHoja from './app/pages/ConfiguracionHoja.tsx';
 import AlumnadoCatalogo from './app/pages/AlumnadoCatalogo.tsx'
 import AlumnadoFormulario from './app/pages/AlumnadoFormulario.tsx'
 
-import { ValidateAccessToRoute } from './app/common/hooks/ValidateAccessToRoute.tsx';
+import { ValidateAccessToRoute } from './app/common/hooks/validateAccessMethods.tsx';
 import { ExcelProvider } from './app/common/contexts/ExcelContext.tsx';
 
 function App() {

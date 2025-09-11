@@ -1,7 +1,7 @@
 import Menu from '../common/Menu.tsx';
 import { useRef, useState } from 'react';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
-import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
+import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
@@ -13,82 +13,62 @@ import { useNavigate } from 'react-router-dom';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
+import { getExcelColumnName } from '../common/utils/clusterOfMethods.tsx';
 import * as XLSX from 'xlsx';
 
-// Funciones de utilidad para calcular rangos de columnas Excel
-const getExcelColumnName = (columnNumber: number): string => {
-  let columnName = '';
-  while (columnNumber > 0) {
-    const remainder = (columnNumber - 1) % 26;
-    columnName = String.fromCharCode(65 + remainder) + columnName;
-    columnNumber = Math.floor((columnNumber - 1) / 26);
-  }
-  return columnName;
-};
-
 const ConfiguracionHoja = () => {
+  // References y hooks
   const toast = useRef<Toast>(null);
   const navigate = useNavigate();
   
   // Intentar obtener datos del contexto si existen, pero no depender de ellos
   const context = useExcelContext();
   const excelData: ColumnExcelData[] = context?.excelData || [];
-  const columnConfig: ColumnGroupConfig[] = context?.columnConfig || [];
+  
+  // Determinar si hay datos de Excel para mostrar o no el Menu
+  const hasExcelData: boolean = (excelData).length > 0;
 
   // Usar configuración existente o valores por defecto
-  const [colConfig, setConfig] = useState<ColumnGroupConfig[]>(() => {
-    return columnConfig || [];
-  });
+  const [columnConfig, setConfig] = useState<ColumnGroupConfig[]>(context?.columnConfig || []);
 
+  // Apuntador para manejar el tab Activo
   const [activeTab, setActiveTab] = useState(0);
   
-  // Estado para trackear elementos recién agregados
-  const [newlyAdded, setNewlyAdded] = useState<{
-    periods: Set<string>;
-    columns: Set<string>;
-    fixedColumnsLeft: Set<number>;
-    fixedColumnsRight: Set<number>;
-  }>({
-    periods: new Set(),
-    columns: new Set(),
-    fixedColumnsLeft: new Set(),
-    fixedColumnsRight: new Set()
-  });
-
-  // Función para marcar elementos como nuevos y limpiar la marca después de un tiempo
-  const markAsNew = (type: 'period' | 'column' | 'fixedLeft' | 'fixedRight', id: string | number) => {
-    if (type === 'period' || type === 'column') {
-      setNewlyAdded(prev => ({
-        ...prev,
-        [type === 'period' ? 'periods' : 'columns']: new Set([...prev[type === 'period' ? 'periods' : 'columns'], id as string])
-      }));
-    } else {
-      setNewlyAdded(prev => ({
-        ...prev,
-        [type === 'fixedLeft' ? 'fixedColumnsLeft' : 'fixedColumnsRight']: new Set([...prev[type === 'fixedLeft' ? 'fixedColumnsLeft' : 'fixedColumnsRight'], id as number])
-      }));
-    }
-
-    // Remover la marca después de 5 segundos
-    setTimeout(() => {
-      setNewlyAdded(prev => {
-        if (type === 'period' || type === 'column') {
-          const newSet = new Set(prev[type === 'period' ? 'periods' : 'columns']);
-          newSet.delete(id as string);
-          return {
-            ...prev,
-            [type === 'period' ? 'periods' : 'columns']: newSet
-          };
+  /*
+   * FUNCIONES DE APOYO A LA VISUALIZACIÓN
+   */
+  const groupSectionConfiguration = () => {
+    let countChangeTypes = 0;
+    const arrayTypeGroupConfig: {
+        left: ColumnGroupConfig[]; center: ColumnGroupConfig[]; right: ColumnGroupConfig[]
+      } = {
+        left: [],
+        center: [],
+        right: []
+      };
+    columnConfig.forEach(groupConfig => {
+      if (typePeriodGroup !== groupConfig.type) {
+        countChangeTypes += 1;
+        arrayTypeGroupConfig.center.push(groupConfig);
+      } else {
+        if (countChangeTypes === 0) {
+          arrayTypeGroupConfig.left.push(groupConfig);
         } else {
-          const newSet = new Set(prev[type === 'fixedLeft' ? 'fixedColumnsLeft' : 'fixedColumnsRight']);
-          newSet.delete(id as number);
-          return {
-            ...prev,
-            [type === 'fixedLeft' ? 'fixedColumnsLeft' : 'fixedColumnsRight']: newSet
-          };
+          arrayTypeGroupConfig.right.push(groupConfig);
         }
-      });
-    }, 5000);
+      }
+    });
+    return arrayTypeGroupConfig;
+  };
+  
+  const groupSectionConfig = groupSectionConfiguration();
+
+  /*
+   * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
+   */
+  const updatedColumnGroup = (colGroupConfig: ColumnGroupConfig[]): void => {
+    setConfig(colGroupConfig ? [...colGroupConfig] : []);
+    recalculateColumnGroupRanges();
   };
 
   // Función para calcular la posición de una columna específica dentro de un grupo
@@ -109,7 +89,7 @@ const ConfiguracionHoja = () => {
   };
 
   // Calcular automáticamente los rangos de los grupos de columnas
-  const recalculateColumnGroupRanges = () => {
+  const recalculateColumnGroupRanges = (): { newGroupIndex: number; newColIndex: number } => {
     // Redefinir el ID de los grupos de columnas
     let currentColumnIndex = 0;
     let newGroupIndex = -1;
@@ -143,6 +123,9 @@ const ConfiguracionHoja = () => {
     };
   };
 
+  /*
+   * FUNCIONES PARA TRATAR CON GRUPOS DE COLUMNAS
+   */
   // Función para agregar un nuevo grupo de columnas
   const addColumnGroup = (typeGroup: 'period') => {
     // Generar un nuevo grupo
@@ -156,7 +139,8 @@ const ConfiguracionHoja = () => {
         label: `Actividad`,
         date: null,
         points: null
-      }))
+      })),
+      isNew: true
     };
     // Determinar posición que debera ocupar el nuevo grupo
     if (columnConfig.length > 0) {
@@ -192,14 +176,8 @@ const ConfiguracionHoja = () => {
         life: 3000
       });
     }
-    // Recalcular rangos después de agregar un nuevo grupo
-    setConfig(columnConfig ? [...columnConfig] : []);
-    const colConfigIndexs = recalculateColumnGroupRanges();
-    // Recuperar el indice del nuevo grupo
-    const newGroupIndex = colConfigIndexs.newGroupIndex;
-    const newId = columnConfig ? columnConfig[newGroupIndex]?.id || '' : '';
-    // Marcar el nuevo período como recién agregado
-    markAsNew('period', newId);
+    // Actualizar la configuración de los grupos de columnas
+    updatedColumnGroup(columnConfig);
     // Lanzar mensaje de exito
     toast.current?.show({
       severity: 'success',
@@ -219,8 +197,7 @@ const ConfiguracionHoja = () => {
           const columnPeriodGroups = columnConfig.filter(p => p.type === typePeriodGroup);
           if (columnPeriodGroups.length > 1) {
             // Actualizar la configuración de los grupos de columnas
-            setConfig(columnConfig.filter(p => p.id !== groupId));
-            recalculateColumnGroupRanges();
+            updatedColumnGroup(columnConfig.filter(p => p.id !== groupId));
             // Lanzar mensaje de exito
             toast.current?.show({
               severity: 'info',
@@ -250,6 +227,9 @@ const ConfiguracionHoja = () => {
     );
   };
 
+  /*
+   * FUNCIONES PARA TRATAR CON COLUMNAS
+   */
   // Función para agregar columna a un grupo
   const addColumnToGroup = (groupId: string, typeGroup: 'info' | 'columns' | 'period') => {
     // Buscar el grupo correspondiente
@@ -266,15 +246,8 @@ const ConfiguracionHoja = () => {
       points: null
     };
     columnConfig[groupIndex].columns.push(newColumn);
-    // Recalcular rangos después de agregar un nuevo grupo
-    setConfig(columnConfig ? [...columnConfig] : []);
-    const colConfigIndexs = recalculateColumnGroupRanges();
-    // Recuperar el indice del nuevo grupo
-    const newGroupIndex = colConfigIndexs.newGroupIndex;
-    const newColIndex = colConfigIndexs.newColIndex;
-    const newColumnId = columnConfig ? columnConfig[newGroupIndex]?.columns[newColIndex]?.id || '' : '';
-    // Marcar la nueva columna como recién agregada
-    markAsNew('column', newColumnId);
+    // Actualizar la configuración de los grupos de columnas
+    updatedColumnGroup(columnConfig);
     // Lanzar mensaje de éxito
     toast.current?.show({
       severity: 'success',
@@ -299,8 +272,7 @@ const ConfiguracionHoja = () => {
             const columnIndex = group.columns.indexOf(column!);
             columnConfig[groupIndex].columns.splice(columnIndex, 1);
             // Actualizar la configuración de los grupos de columnas
-            setConfig(columnConfig);
-            recalculateColumnGroupRanges();
+            updatedColumnGroup(columnConfig);
             // Lanzar mensaje de exito
             toast.current?.show({
               severity: 'info',
@@ -334,6 +306,9 @@ const ConfiguracionHoja = () => {
       );
   };
 
+  /*
+   * FUNCIONES PARA TRATAR CON EL ARCHIVO DE EXCEL
+   */
   // Función para actualizar la configuración de un archivo de Excel
   const updatedExcelFileConfiguration = (fileName: string): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -462,6 +437,7 @@ const ConfiguracionHoja = () => {
       // Guardar configuraciones en localStorage
       localStorage.setItem('columnConfig', JSON.stringify(columnConfig));
       
+      // Lanzar mensaje
       toast.current?.show({
         severity: 'info',
         summary: 'Generando archivo actualizado',
@@ -472,21 +448,19 @@ const ConfiguracionHoja = () => {
       // Generar archivo Excel con la configuración
       const fileNameXLS = 'CONC._CALIF._X°Y_.xlsx';
       const excelFile = await updatedExcelFileConfiguration(fileNameXLS);
-      
       // Crear enlace para descargar el archivo
       const url = URL.createObjectURL(excelFile);
       const link = document.createElement('a');
       link.href = url;
       link.download = fileNameXLS;
-      
       // Simular click para descargar
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
       // Limpiar URL
       URL.revokeObjectURL(url);
-      
+
+      // Lanzar mensaje
       toast.current?.show({
         severity: 'success',
         summary: 'Actualización de archivo generada',
@@ -498,17 +472,13 @@ const ConfiguracionHoja = () => {
       setTimeout(async () => {
         try {
           if (context?.loadExcelFromFile) {
-            const excelData = await context.loadExcelFromFile(excelFile);
-            localStorage.setItem('excelData', JSON.stringify(excelData));
-            localStorage.setItem('fileRoute', 'true');
-            
+            // Lanzar mensaje
             toast.current?.show({
               severity: 'success',
               summary: 'Configuración aplicada',
               detail: 'El archivo ha sido cargado con la nueva configuración',
               life: 3000
             });
-            
             // Navegar al catálogo después de cargar
             setTimeout(() => {
               navigate('/');
@@ -521,28 +491,28 @@ const ConfiguracionHoja = () => {
               detail: 'El archivo fue descargado. Puedes cargarlo desde la página principal.',
               life: 4000
             });
-            
+            // Navegar al catálogo después de cargar
             setTimeout(() => {
               navigate('/cargar-hoja');
             }, 1000);
           }
         } catch (error) {
-          console.error('Error al cargar el archivo generado:', error);
+          // Lanzar mensaje
           toast.current?.show({
             severity: 'warn',
             summary: 'Archivo generado',
             detail: 'El archivo fue descargado pero debes cargarlo manualmente',
             life: 4000
           });
-          
+          // Navegar al catálogo después de cargar
           setTimeout(() => {
             navigate('/cargar-hoja');
           }, 1000);
         }
       }, 2000);
-      
+
     } catch (error) {
-      console.error('Error al generar el archivo:', error);
+      // Lanzar mensaje
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
@@ -552,59 +522,15 @@ const ConfiguracionHoja = () => {
     }
   };
 
-  const previewConfiguration = () => {
-    const leftCols = extendedConfig.fixedColumnsLeft.map((col, idx) => ({
-      name: col,
-      position: getExcelColumnName(idx + 1),
-      type: 'fixed-left',
-      date: undefined,
-      points: undefined,
-      category: 'Fijas Izquierdas'
-    }));
-
-    let currentPosition = extendedConfig.fixedColumnsLeft.length + 1;
-    const periodCols = extendedConfig.periods
-      .sort((a, b) => a.order - b.order)
-      .flatMap(period => 
-        period.columns.map((column, idx) => ({
-          name: column.header,
-          position: getExcelColumnName(currentPosition + idx),
-          type: period.id,
-          periodName: period.name,
-          date: column.date,
-          points: column.points,
-          category: 'Períodos'
-        }))
-      );
-
-    // Actualizar currentPosition después de cada período
-    currentPosition += extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0);
-
-    const rightCols = extendedConfig.fixedColumnsRight.map((col, idx) => ({
-      name: col.name,
-      position: getExcelColumnName(currentPosition + idx),
-      type: 'fixed-right',
-      date: col.date,
-      points: col.points,
-      category: 'Fijas Derechas'
-    }));
-
-    return [...leftCols, ...periodCols, ...rightCols];
-  };
-
-  const errors = validateConfiguration();
-  const preview = previewConfiguration();
-
   // Determinar el título basado en si hay datos de Excel
   const getPageTitle = () => {
-    const hasExcelData = localStorage.getItem('excelData');
-    return hasExcelData ? 'Configuración de hoja de calificaciones' : 'Crear nueva hoja de calificaciones';
+    return hasExcelData
+      ? 'Configuración de hoja de calificaciones'
+      : 'Crear nueva hoja de calificaciones';
   };
 
   // Determinar botones de navegación
   const getNavigationButtons = () => {
-    const hasExcelData = localStorage.getItem('excelData');
-    
     if (hasExcelData) {
       return (
         <Button 
@@ -626,50 +552,32 @@ const ConfiguracionHoja = () => {
     }
   };
 
-  // Determinar si hay datos de Excel para mostrar o no el Menu
-  const hasExcelData = localStorage.getItem('excelData');
-
   // Contenido principal que se renderiza con o sin Menu
   const mainContent = (
     <>
-      <Toast ref={toast} />
       <ConfirmDialog />
+      <Toast ref={toast} />
       <div className="p-4 max-w-7xl w-full">
+
+        {/* Botones de acción */}
         <div className="flex justify-between items-center mb-6">
-          <div className="flex gap-3">
-            <Button
-              label="Recalcular rangos automáticamente"
-              icon="pi pi-refresh"
-              className="p-button-info text-white bg-blue-500 hover:bg-blue-800 p-2"
-              onClick={recalculateRanges}
-            />
+          <div className="flex">
           </div>
           <div className="flex gap-3">
             <Button
               label="Generar archivo Excel"
               icon="pi pi-download"
               className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
-              onClick={handleSave}
-              disabled={errors.length > 0}
+              onClick={saveExcelFileConfiguration}
             />
             {getNavigationButtons()}
           </div>
         </div>
 
-        {errors.length > 0 && (
-          <Card className="mb-6 bg-red-50 border-red-200">
-            <div className="text-red-800">
-              <h4 className="font-bold mb-2">Errores de Configuración:</h4>
-              <ul className="list-disc list-inside">
-                {errors.map((error, idx) => (
-                  <li key={idx}>{error}</li>
-                ))}
-              </ul>
-            </div>
-          </Card>
-        )}
-
+        {/* Panel de Períodos */}
         <TabView activeIndex={activeTab} onTabChange={(e) => setActiveTab(e.index)}  className="p-0">
+          
+          {/* Panel de Columnas Centrales */}
           <TabPanel header="Configuración de Períodos" leftIcon="pi pi-calendar mr-2" className="p-0">
             <Card className="mb-6 p-0">
               <div className="flex justify-between items-center mb-4">
@@ -683,309 +591,335 @@ const ConfiguracionHoja = () => {
               </div>
               
               <div className="grid grid-cols-1 gap-6">
-                {extendedConfig.periods
-                  .sort((a, b) => a.order - b.order)
-                  .map((period) => {
-                    const isNew = newlyAdded.periods.has(period.id);
-                    return (
-                      <Card 
-                        key={period.id} 
-                        className={`border-l-4 transition-all duration-500 ${
-                          isNew 
-                            ? 'border-2 border-green-400 shadow-lg shadow-green-200 bg-green-50' 
-                            : ''
-                        }`} 
-                        style={{ borderLeftColor: period.color }}
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div className="flex items-center gap-3">
-                            <div 
-                              className="w-8 h-8 rounded border"
-                              style={{ backgroundColor: period.color }}
-                            ></div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-bold text-lg">{period.name}</h3>
-                              {isNew && (
-                                <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
-                                  ¡NUEVO!
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                      
-                      <div className="flex gap-2">
-                        <Button
-                          icon="pi pi-plus"
-                          className="p-button-sm p-button-success"
-                          tooltip="Agregar columna"
-                          onClick={() => addColumnToGroup(period.id)}
-                        />
-                        {extendedConfig.periods.length > 1 && (
-                          <Button
-                            icon="pi pi-trash"
-                            className="p-button-sm p-button-danger"
-                            tooltip="Eliminar período"
-                            onClick={() => removeColumnGroup(period.id)}
-                          />
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Nombre del período</label>
-                        <InputText 
-                          value={period.name} 
-                          onChange={(e) => updateColumnGroup(period.id, { name: e.target.value })} 
-                          className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Número de columnas</label>
-                        <InputNumber 
-                          value={period.numColumns} 
-                          onValueChange={(e) => updateColumnGroup(period.id, { numColumns: e.value || 1 })} 
-                          className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                          min={1}
-                          max={10}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium mb-1">Color</label>
-                        <div className="flex gap-2 items-center">
-                          <ColorPicker 
-                            value={period.color.replace('#', '')} 
-                            onChange={(e) => updateColumnGroup(period.id, { color: `#${e.value}` })} 
-                          />
-                          <InputText 
-                            value={period.color} 
-                            onChange={(e) => updateColumnGroup(period.id, { color: e.target.value })}
-                            className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                            placeholder="#000000"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Sección de columnas del período */}
-                    <div className="border-t pt-4">
-                      <div className="flex justify-between items-center mb-3">
-                        <h5 className="font-medium">Columnas del Período</h5>
-                        <span className="text-sm text-gray-500">{period.columns.length} columnas</span>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 gap-3">
-                        {period.columns.map((column, colIndex) => {
-                          const isNewColumn = newlyAdded.columns.has(column.id);
+                {groupSectionConfig.center.map((arrayColumnConfig) => {
+                  return (
+                    <>
+                      {(
+                        arrayColumnConfig.map((groupConfig) => {
+                          const isNew = groupConfig.isNew;
                           return (
-                            <div 
-                              key={column.id} 
-                              className={`flex gap-3 items-center p-3 rounded transition-all duration-500 ${
-                                isNewColumn 
-                                  ? 'bg-green-100 border-2 border-green-300 shadow-md' 
-                                  : 'bg-gray-50'
+                            <Card 
+                              key={groupConfig.id} 
+                              className={`border-l-4 transition-all duration-500 ${
+                                isNew 
+                                  ? 'border-2 border-green-400 shadow-lg shadow-green-200 bg-green-50' 
+                                  : ''
                               }`}
+                              style={{ borderLeftColor: groupConfig.color }}
                             >
-                              <span className="text-sm font-medium w-8 text-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                {getColumnPositionInGroup(period.id, colIndex)}
-                              </span>
-                              
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <label className="block text-xs text-gray-600">Nombre</label>
-                                  {isNewColumn && (
-                                    <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
-                                      ¡NUEVA!
-                                    </span>
+                              <div className="flex justify-between items-start mb-4">
+                                <div className="flex items-center gap-3">
+                                  <div 
+                                    className="w-8 h-8 rounded border"
+                                    style={{ backgroundColor: groupConfig.color }}
+                                  ></div>
+                                  <div className="flex items-center gap-2">
+                                    <h3 className="font-bold text-lg">{groupConfig.label}</h3>
+                                    {isNew && (
+                                      <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
+                                        ¡NUEVO!
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                            
+                                <div className="flex gap-2">
+                                  <Button
+                                    icon="pi pi-plus"
+                                    className="p-button-sm p-button-success"
+                                    tooltip="Agregar columna"
+                                    onClick={() => addColumnToGroup(groupConfig.id, typePeriodGroup)}
+                                  />
+                                  {groupConfig.columns.length > 1 && (
+                                    <Button
+                                      icon="pi pi-trash"
+                                      className="p-button-sm p-button-danger"
+                                      tooltip="Eliminar período"
+                                      onClick={() => removeColumnGroup(groupConfig.id)}
+                                    />
                                   )}
                                 </div>
-                                <InputText
-                                  value={column.header}
-                                  onChange={(e) => updateColumnFromGroup(period.id, column.id, { header: e.target.value })}
-                                  className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                  placeholder="Nombre de la actividad"
-                                />
                               </div>
-                            
-                            <div className="w-32">
-                              <label className="block text-xs text-gray-600 mb-1">Fecha</label>
-                              <InputText
-                                value={column.date}
-                                onChange={(e) => updateColumnFromGroup(period.id, column.id, { date: e.target.value })}
-                                className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                placeholder="DD-MMM-AA"
-                              />
-                            </div>
-                            
-                            <div className="w-20">
-                              <label className="block text-xs text-gray-600 mb-1">Puntos</label>
-                              <InputNumber
-                                value={column.points}
-                                onValueChange={(e) => updateColumnFromGroup(period.id, column.id, { points: e.value || 0 })}
-                                className="w-20 text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                min={0}
-                                max={100}
-                              />
-                            </div>
-                            
-                            {period.columns.length > 1 && (
-                              <Button
-                                icon="pi pi-trash"
-                                className="p-button-sm p-button-danger p-button-text"
-                                tooltip="Eliminar columna"
-                                onClick={() => removeColumnFromGroup(period.id, column.id)}
-                              />
-                            )}
-                          </div>
+                          
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Nombre del período</label>
+                                  <InputText 
+                                    value={groupConfig.label} 
+                                    onChange={(e) => updateColumnGroup(groupConfig.id, { label: e.target.value })} 
+                                    className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                  />
+                                </div>
+                                
+                                <div>
+                                  <label className="block text-sm font-medium mb-1">Color</label>
+                                  <div className="flex gap-2 items-center">
+                                    <ColorPicker 
+                                      value={groupConfig.color.replace('#', '')} 
+                                      onChange={(e) => updateColumnGroup(groupConfig.id, { color: `#${e.value}` })} 
+                                    />
+                                    <InputText 
+                                      value={groupConfig.color} 
+                                      onChange={(e) => updateColumnGroup(groupConfig.id, { color: e.target.value })}
+                                      className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                      placeholder="#000000"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+          
+                              {/* Sección de columnas del período */}
+                              <div className="border-t pt-4">
+
+                                <div className="flex justify-between items-center mb-3">
+                                  <h5 className="font-medium">Columnas del Período</h5>
+                                  <span className="text-sm text-gray-500">{groupConfig.columns.length} columnas</span>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 gap-3">
+                                  {groupConfig.columns.map((excelConfig, colIndex) => {
+                                    const isNewColumn = excelConfig.isNew;
+                                    return (
+                                      <div 
+                                        key={excelConfig.id} 
+                                        className={`flex gap-3 items-center p-3 rounded transition-all duration-500 ${
+                                          isNewColumn 
+                                            ? 'bg-green-100 border-2 border-green-300 shadow-md' 
+                                            : 'bg-gray-50'
+                                        }`}
+                                      >
+                                        <span className="text-sm font-medium w-8 text-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                          {getColumnPositionInGroup(excelConfig.id, colIndex)}
+                                        </span>
+                                        
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2 mb-1">
+                                            <label className="block text-xs text-gray-600">Nombre</label>
+                                            {isNewColumn && (
+                                              <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
+                                                ¡NUEVA!
+                                              </span>
+                                            )}
+                                          </div>
+                                          <InputText
+                                            value={excelConfig.header}
+                                            onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
+                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                            placeholder="Nombre de la actividad"
+                                          />
+                                        </div>
+                                      
+                                        <div className="w-32">
+                                          <label className="block text-xs text-gray-600 mb-1">Fecha</label>
+                                          <InputText
+                                            value={excelConfig.date}
+                                            onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { date: e.target.value })}
+                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                            placeholder="DD-MMM-AA"
+                                          />
+                                        </div>
+                                        
+                                        <div className="w-20">
+                                          <label className="block text-xs text-gray-600 mb-1">Puntos</label>
+                                          <InputNumber
+                                            value={excelConfig.points}
+                                            onValueChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: e.value || 0 })}
+                                            className="w-20 text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                            min={0}
+                                            max={100}
+                                          />
+                                        </div>
+                                        
+                                        {groupConfig.columns.length > 1 && (
+                                          <Button
+                                            icon="pi pi-trash"
+                                            className="p-button-sm p-button-danger p-button-text"
+                                            tooltip="Eliminar columna"
+                                            onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
+                                          />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                
+                              </div>
+                            </Card>
                           );
-                        })}
-                      </div>
-                    </div>
-                  </Card>
-                    );
-                  })}
+                        })
+                      )}
+                    </>
+                  );
+                })}
               </div>
             </Card>
           </TabPanel>
 
+          {/* Panel de Columnas Fijas */}
           <TabPanel header="Columnas Fijas" leftIcon="pi pi-table mr-2" className="p-0">
+            
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-0">
+              
               {/* Columnas Fijas Izquierdas */}
-              <Card>
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-bold">Columnas Fijas Izquierdas</h4>
-                  <Button
-                    icon="pi pi-plus"
-                    className="p-button-sm p-button-success"
-                    onClick={() => addColumnToGroup(group.id)}
-                    tooltip="Agregar columna"
-                  />
-                </div>
-                <div className="space-y-2">
-                  {extendedConfig.fixedColumnsLeft.map((column, index) => {
-                    const isNewLeft = newlyAdded.fixedColumnsLeft.has(index);
-                    return (
-                      <div 
-                        key={index} 
-                        className={`flex gap-2 items-center p-2 rounded transition-all duration-500 ${
-                          isNewLeft 
-                            ? 'bg-green-100 border-2 border-green-300 shadow-md' 
-                            : 'bg-transparent'
-                        }`}
-                      >
-                        <span className="text-sm text-gray-500 w-8">{getExcelColumnName(index + 1)}</span>
-                        <div className="flex-1 flex items-center gap-2">
-                          <InputText
-                            value={column}
-                            onChange={e => updateColumnFromGroup(group.id, index, { label: e.target.value })}
-                            className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                          />
-                          {isNewLeft && (
-                            <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
-                              ¡NUEVA!
-                            </span>
-                          )}
-                        </div>
-                        <Button
-                          icon="pi pi-trash"
-                          className="p-button-sm p-button-danger p-button-text"
-                          onClick={() => removeColumnFromGroup(group.id, index)}
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
+              {groupSectionConfig.left.map((arrayColumnConfig) => {
+                return (
+                  <>
+                    {(
+                      arrayColumnConfig.map((groupConfig, indexGroup) => {
+                        groupConfig.columns.map((excelConfig, colIndex) => {
+                          const isNewColumn = excelConfig.isNew;
+                          return (
+                            <Card>
+                              <div className="flex justify-between items-center mb-4">
+                                <h4 className="font-bold">Columnas Fijas Izquierdas</h4>
+                                <Button
+                                  icon="pi pi-plus"
+                                  className="p-button-sm p-button-success"
+                                  onClick={() => addColumnToGroup(groupConfig.id, typeColumnsGroup)}
+                                  tooltip="Agregar columna"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <div 
+                                  key={indexGroup} 
+                                  className={`flex gap-2 items-center p-2 rounded transition-all duration-500 ${
+                                    isNewColumn 
+                                      ? 'bg-green-100 border-2 border-green-300 shadow-md' 
+                                      : 'bg-transparent'
+                                  }`}
+                                >
+                                  <span className="text-sm text-gray-500 w-8">{getExcelColumnName(indexGroup + 1)}</span>
+                                  <div className="flex-1 flex items-center gap-2">
+                                    <InputText
+                                      value={excelConfig.label}
+                                      onChange={e => updateColumnFromGroup(groupConfig.id, indexGroup, { label: e.target.value })}
+                                      className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                    />
+                                    {isNewColumn && (
+                                      <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
+                                        ¡NUEVA!
+                                      </span>
+                                    )}
+                                  </div>
+                                  <Button
+                                    icon="pi pi-trash"
+                                    className="p-button-sm p-button-danger p-button-text"
+                                    onClick={() => removeColumnFromGroup(groupConfig.id, indexGroup)}
+                                  />
+                                </div>
+                              </div>
+                            </Card>
+                          );
+                        });
+                      })
+                    )}
+                  </>
+                );
+              })}
 
               {/* Columnas Fijas Derechas */}
-              <Card>
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="font-bold">Columnas Fijas Derechas</h4>
-                  <Button
-                    icon="pi pi-plus"
-                    className="p-button-sm p-button-success"
-                    onClick={() => addColumnToGroup(group.id)}
-                    tooltip="Agregar columna"
-                  />
-                </div>
-                <div className="space-y-4">
-                  {extendedConfig.fixedColumnsRight.map((column, index) => {
-                    const totalPeriodsColumns = extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0);
-                    const position = extendedConfig.fixedColumnsLeft.length + totalPeriodsColumns + index + 1;
-                    const isNewRight = newlyAdded.fixedColumnsRight.has(index);
-                    
-                    return (
-                      <div 
-                        key={index} 
-                        className={`p-3 rounded border transition-all duration-500 ${
-                          isNewRight 
-                            ? 'bg-green-100 border-2 border-green-300 shadow-lg' 
-                            : 'bg-gray-50 border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="text-sm font-medium text-gray-500 w-8">
-                            {getExcelColumnName(position)}
-                          </span>
-                          <h6 className="font-medium text-gray-700">Columna {index + 1}</h6>
-                          {isNewRight && (
-                            <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
-                              ¡NUEVA!
-                            </span>
-                          )}
-                          <div className="flex-1"></div>
-                          <Button
-                            icon="pi pi-trash"
-                            className="p-button-sm p-button-danger p-button-text"
-                            onClick={() => removeColumnFromGroup(group.id, index)}
-                            tooltip="Eliminar columna"
-                          />
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div>
-                            <label className="block text-xs text-gray-600 mb-1">Nombre *</label>
-                            <InputText
-                              value={column.name}
-                              onChange={e => updateColumnFromGroup(group.id, index, { label: e.target.value })}
-                              className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                              placeholder="Nombre de la columna"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-xs text-gray-600 mb-1">Fecha (opcional)</label>
-                            <InputText
-                              value={column.date || ''}
-                              onChange={e => updateColumnFromGroup(group.id, index, { date: e.target.value === '' ? undefined : e.target.value })}
-                              className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                              placeholder="DD-MMM-AA"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-xs text-gray-600 mb-1">Puntos (opcional)</label>
-                            <InputNumber
-                              value={column.points ?? null}
-                              onValueChange={(e) => {
-                                const newValue = e.value !== null && e.value !== undefined ? e.value : undefined;
-                                updateColumnFromGroup(group.id, index, { points: newValue });
-                              }}
-                              className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                              placeholder="0"
-                              min={0}
-                              max={100}
-                              showButtons={false}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
+              {groupSectionConfig.right.map((arrayColumnConfig) => {
+                return (
+                  <>
+                    {(
+                      arrayColumnConfig.map((groupConfig, indexGroup) => {
+                        groupConfig.columns.map((excelConfig, colIndex) => {
+                          const isNewColumn = excelConfig.isNew;
+                          return (
+                            <Card>
+                              <div className="flex justify-between items-center mb-4">
+                                <h4 className="font-bold">Columnas Fijas Derechas</h4>
+                                <Button
+                                  icon="pi pi-plus"
+                                  className="p-button-sm p-button-success"
+                                  onClick={() => addColumnToGroup(groupConfig.id, typeColumnsGroup)}
+                                  tooltip="Agregar columna"
+                                />
+                              </div>
+                              <div className="space-y-4">
+                                {groupSectionConfig.right.map((column, index) => {
+                                  const totalPeriodsColumns = extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0);
+                                  const position = extendedConfig.fixedColumnsLeft.length + totalPeriodsColumns + index + 1;
+                                  const isNewRight = newlyAdded.fixedColumnsRight.has(index);
+                                  
+                                  return (
+                                    <div 
+                                      key={index} 
+                                      className={`p-3 rounded border transition-all duration-500 ${
+                                        isNewRight 
+                                          ? 'bg-green-100 border-2 border-green-300 shadow-lg' 
+                                          : 'bg-gray-50 border-gray-200'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-sm font-medium text-gray-500 w-8">
+                                          {getExcelColumnName(position)}
+                                        </span>
+                                        <h6 className="font-medium text-gray-700">Columna {index + 1}</h6>
+                                        {isNewRight && (
+                                          <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
+                                            ¡NUEVA!
+                                          </span>
+                                        )}
+                                        <div className="flex-1"></div>
+                                        <Button
+                                          icon="pi pi-trash"
+                                          className="p-button-sm p-button-danger p-button-text"
+                                          onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
+                                          tooltip="Eliminar columna"
+                                        />
+                                      </div>
+                                      
+                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div>
+                                          <label className="block text-xs text-gray-600 mb-1">Nombre *</label>
+                                          <InputText
+                                            value={excelConfig.label}
+                                            onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
+                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                            placeholder="Nombre de la columna"
+                                          />
+                                        </div>
+                                        
+                                        <div>
+                                          <label className="block text-xs text-gray-600 mb-1">Fecha (opcional)</label>
+                                          <InputText
+                                            value={excelConfig.date || ''}
+                                            onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { date: e.target.value === '' ? undefined : e.target.value })}
+                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                            placeholder="DD-MMM-AA"
+                                          />
+                                        </div>
+                                        
+                                        <div>
+                                          <label className="block text-xs text-gray-600 mb-1">Puntos (opcional)</label>
+                                          <InputNumber
+                                            value={excelConfig.points ?? null}
+                                            onValueChange={(e) => {
+                                              const newValue = e.value !== null && e.value !== undefined ? e.value : undefined;
+                                              updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: newValue });
+                                            }}
+                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                            placeholder="0"
+                                            min={0}
+                                            max={100}
+                                            showButtons={false}
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </Card>
+                          );
+                        });
+                      })
+                    )}
+                  </>
+                );
+              })}
+
             </div>
           </TabPanel>
 
@@ -1077,8 +1011,7 @@ const ConfiguracionHoja = () => {
               label="Generar archivo Excel"
               icon="pi pi-download"
               className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
-              onClick={handleSave}
-              disabled={errors.length > 0}
+              onClick={saveExcelFileConfiguration}
             />
             {getNavigationButtons()}
           </div>
