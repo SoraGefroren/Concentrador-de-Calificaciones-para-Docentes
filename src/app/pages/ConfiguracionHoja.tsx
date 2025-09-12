@@ -64,6 +64,29 @@ const ConfiguracionHoja = () => {
   const groupSectionConfig = groupSectionConfiguration();
 
   /*
+   * FUNCIONES DE APOYO A LA VISUALIZACIÓN
+   */
+  const groupPreviewConfiguration = () => {
+    let arrayTypeGroupConfig = [];
+    columnConfig.forEach(groupConfig => {
+      // Se recorren las columnas que conforman al grupo
+      groupConfig.columns.forEach(excelConfig => {
+        arrayTypeGroupConfig.push({
+          position: excelConfig.id,
+          name: excelConfig.label,
+          date: excelConfig.date,
+          points: excelConfig.points,
+          category: groupConfig.type,
+          type: groupConfig.type
+        });
+      });
+    });
+    return arrayTypeGroupConfig;
+  }
+  
+  const groupPreviewConfig = groupPreviewConfiguration();
+
+  /*
    * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
    */
   const updatedColumnGroup = (colGroupConfig: ColumnGroupConfig[]): void => {
@@ -927,7 +950,7 @@ const ConfiguracionHoja = () => {
             <Card className="p-0">
               <h4 className="font-bold mb-4">Vista Previa de la Estructura</h4>
               <div className="overflow-x-auto">
-                <DataTable value={preview} className="text-sm">
+                <DataTable value={groupPreviewConfig} className="text-sm">
                   <Column field="position" header="Posición Excel" style={{ width: '100px' }} />
                   <Column field="name" header="Nombre de Columna" style={{ width: '200px' }} />
                   <Column 
@@ -976,29 +999,6 @@ const ConfiguracionHoja = () => {
                     )}
                   />
                 </DataTable>
-              </div>
-              
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="text-center p-4 bg-gray-50 rounded">
-                  <div className="text-2xl font-bold text-gray-600">
-                    {extendedConfig.fixedColumnsLeft.length}
-                  </div>
-                  <div className="text-sm text-gray-600">Columnas Fijas Izq.</div>
-                </div>
-                
-                <div className="text-center p-4 bg-indigo-50 rounded">
-                  <div className="text-2xl font-bold text-indigo-600">
-                    {extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0)}
-                  </div>
-                  <div className="text-sm text-indigo-600">Columnas de Períodos</div>
-                </div>
-                
-                <div className="text-center p-4 bg-gray-50 rounded">
-                  <div className="text-2xl font-bold text-gray-600">
-                    {extendedConfig.fixedColumnsRight.length}
-                  </div>
-                  <div className="text-sm text-gray-600">Columnas Fijas Der.</div>
-                </div>
               </div>
 
             </Card>
