@@ -38,27 +38,32 @@ const ConfiguracionHoja = () => {
    * FUNCIONES DE APOYO A LA VISUALIZACIÓN
    */
   const groupSectionConfiguration = () => {
-    let countChangeTypes = 0;
-    const arrayTypeGroupConfig: {
-        left: ColumnGroupConfig[]; center: ColumnGroupConfig[]; right: ColumnGroupConfig[]
-      } = {
-        left: [],
-        center: [],
-        right: []
-      };
+    const result: {
+      left: ColumnGroupConfig[];
+      center: ColumnGroupConfig[];
+      right: ColumnGroupConfig[];
+    } = {
+      left: [],
+      center: [],
+      right: []
+    };
+    
+    let foundNonPeriod = false;
+    
     columnConfig.forEach(groupConfig => {
-      if (typePeriodGroup !== groupConfig.type) {
-        countChangeTypes += 1;
-        arrayTypeGroupConfig.center.push(groupConfig);
-      } else {
-        if (countChangeTypes === 0) {
-          arrayTypeGroupConfig.left.push(groupConfig);
+      if (groupConfig.type === typePeriodGroup) {
+        if (!foundNonPeriod) {
+          result.left.push(groupConfig);
         } else {
-          arrayTypeGroupConfig.right.push(groupConfig);
+          result.right.push(groupConfig);
         }
+      } else {
+        foundNonPeriod = true;
+        result.center.push(groupConfig);
       }
     });
-    return arrayTypeGroupConfig;
+    
+    return result;
   };
   
   const groupSectionConfig = groupSectionConfiguration();
@@ -67,7 +72,14 @@ const ConfiguracionHoja = () => {
    * FUNCIONES DE APOYO A LA VISUALIZACIÓN
    */
   const groupPreviewConfiguration = () => {
-    let arrayTypeGroupConfig = [];
+    const arrayTypeGroupConfig: Array<{
+      position: string;
+      name: string;
+      date: string | null;
+      points: number | null;
+      category: string;
+      type: string;
+    }> = [];
     columnConfig.forEach(groupConfig => {
       // Se recorren las columnas que conforman al grupo
       groupConfig.columns.forEach(excelConfig => {
@@ -157,12 +169,12 @@ const ConfiguracionHoja = () => {
       color: '#3b82f6',
       label: `Título`,
       type: typeGroup,
-      columns: Array.from({ length: 1 }, (_, i) => ({
+      columns: [{
         id: ``,
         label: `Actividad`,
         date: null,
         points: null
-      })),
+      }],
       isNew: true
     };
     // Determinar posición que debera ocupar el nuevo grupo
@@ -318,20 +330,65 @@ const ConfiguracionHoja = () => {
 
   // Función para actualizar una columna específica
   const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number }) => {    
-      const group = columnConfig.find(p => p.id === groupId);
-      group?.columns.map(c => 
-        c.id === columnId ? { ...c, ...updates } : c
-      );
-      setConfig(
-        columnConfig.map(p => 
-          p.id === groupId ? { ...p, ...group } : p
-        )
-      );
+      const updatedConfig = columnConfig.map(group => {
+        if (group.id === groupId) {
+          const updatedColumns = group.columns.map(column =>
+            column.id === columnId ? { ...column, ...updates } : column
+          );
+          return { ...group, columns: updatedColumns };
+        }
+        return group;
+      });
+      setConfig(updatedConfig);
   };
 
   /*
    * FUNCIONES PARA TRATAR CON EL ARCHIVO DE EXCEL
    */
+  
+  // Función para validar la configuración completa
+  const validateConfiguration = (): boolean => {
+    // Validar que existan períodos
+    const periodGroups = columnConfig.filter(g => g.type === typePeriodGroup);
+    if (periodGroups.length === 0) {
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error de validación',
+        detail: 'Debe existir al menos un período',
+        life: 5000
+      });
+      return false;
+    }
+
+    // Validar que cada grupo tenga al menos una columna
+    for (const group of columnConfig) {
+      if (group.columns.length === 0) {
+        toast.current?.show({
+          severity: 'error',
+          summary: 'Error de validación',
+          detail: `El grupo "${group.label}" debe tener al menos una columna`,
+          life: 5000
+        });
+        return false;
+      }
+
+      // Validar que todas las columnas tengan nombre
+      for (const column of group.columns) {
+        if (!column.label || column.label.trim() === '') {
+          toast.current?.show({
+            severity: 'error',
+            summary: 'Error de validación',
+            detail: `Todas las columnas deben tener un nombre válido`,
+            life: 5000
+          });
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+  
   // Función para actualizar la configuración de un archivo de Excel
   const updatedExcelFileConfiguration = (fileName: string): Promise<File> => {
     return new Promise((resolve, reject) => {
@@ -370,7 +427,6 @@ const ConfiguracionHoja = () => {
             const lastIndex = matrixExcelData.length - 1;
             // Se recorre cada columna para agregar los datos
             arrayHeaderFields.forEach((headerField) => {
-              debugger;
               matrixExcelData[lastIndex].push(rowData[headerField] || '');
             });
           });
@@ -444,6 +500,11 @@ const ConfiguracionHoja = () => {
   };
 
   const saveExcelFileConfiguration = async () => {
+    // Ejecutar validación completa
+    if (!validateConfiguration()) {
+      return;
+    }
+
     // Validar que cada período tenga al menos una columna
     const periodsWithoutColumns = columnConfig.filter(g => g.columns.length < 1);
     if (periodsWithoutColumns.length > 0) {
@@ -451,6 +512,18 @@ const ConfiguracionHoja = () => {
         severity: 'error',
         summary: 'Error de validación',
         detail: 'Todos los períodos deben tener al menos una columna',
+        life: 5000
+      });
+      return;
+    }
+
+    // Validar que exista al menos un período
+    const periodGroups = columnConfig.filter(g => g.type === typePeriodGroup);
+    if (periodGroups.length === 0) {
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error de validación',
+        detail: 'Debe existir al menos un período',
         life: 5000
       });
       return;
@@ -471,6 +544,7 @@ const ConfiguracionHoja = () => {
       // Generar archivo Excel con la configuración
       const fileNameXLS = 'CONC._CALIF._X°Y_.xlsx';
       const excelFile = await updatedExcelFileConfiguration(fileNameXLS);
+      
       // Crear enlace para descargar el archivo
       const url = URL.createObjectURL(excelFile);
       const link = document.createElement('a');
@@ -495,6 +569,7 @@ const ConfiguracionHoja = () => {
       setTimeout(async () => {
         try {
           if (context?.loadExcelFromFile) {
+            await context.loadExcelFromFile(excelFile);
             // Lanzar mensaje
             toast.current?.show({
               severity: 'success',
@@ -520,6 +595,7 @@ const ConfiguracionHoja = () => {
             }, 1000);
           }
         } catch (error) {
+          console.error('Error al cargar el archivo:', error);
           // Lanzar mensaje
           toast.current?.show({
             severity: 'warn',
@@ -535,6 +611,7 @@ const ConfiguracionHoja = () => {
       }, 2000);
 
     } catch (error) {
+      console.error('Error al generar el archivo Excel:', error);
       // Lanzar mensaje
       toast.current?.show({
         severity: 'error',
@@ -614,164 +691,154 @@ const ConfiguracionHoja = () => {
               </div>
               
               <div className="grid grid-cols-1 gap-6">
-                {groupSectionConfig.center.map((arrayColumnConfig) => {
+                {groupSectionConfig.center.map((groupConfig) => {
+                  const isNew = groupConfig.isNew;
                   return (
-                    <>
-                      {(
-                        arrayColumnConfig.map((groupConfig) => {
-                          const isNew = groupConfig.isNew;
-                          return (
-                            <Card 
-                              key={groupConfig.id} 
-                              className={`border-l-4 transition-all duration-500 ${
-                                isNew 
-                                  ? 'border-2 border-green-400 shadow-lg shadow-green-200 bg-green-50' 
-                                  : ''
-                              }`}
-                              style={{ borderLeftColor: groupConfig.color }}
-                            >
-                              <div className="flex justify-between items-start mb-4">
-                                <div className="flex items-center gap-3">
-                                  <div 
-                                    className="w-8 h-8 rounded border"
-                                    style={{ backgroundColor: groupConfig.color }}
-                                  ></div>
-                                  <div className="flex items-center gap-2">
-                                    <h3 className="font-bold text-lg">{groupConfig.label}</h3>
-                                    {isNew && (
-                                      <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
-                                        ¡NUEVO!
+                    <Card 
+                      key={groupConfig.id} 
+                      className={`border-l-4 transition-all duration-500 ${
+                        isNew 
+                          ? 'border-2 border-green-400 shadow-lg shadow-green-200 bg-green-50' 
+                          : ''
+                      }`}
+                      style={{ borderLeftColor: groupConfig.color }}
+                    >
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div 
+                            className="w-8 h-8 rounded border"
+                            style={{ backgroundColor: groupConfig.color }}
+                          ></div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-lg">{groupConfig.label}</h3>
+                            {isNew && (
+                              <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
+                                ¡NUEVO!
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                    
+                        <div className="flex gap-2">
+                          <Button
+                            icon="pi pi-plus"
+                            className="p-button-sm p-button-success"
+                            tooltip="Agregar columna"
+                            onClick={() => addColumnToGroup(groupConfig.id, 'period')}
+                          />
+                          {columnConfig.filter(g => g.type === typePeriodGroup).length > 1 && (
+                            <Button
+                              icon="pi pi-trash"
+                              className="p-button-sm p-button-danger"
+                              tooltip="Eliminar período"
+                              onClick={() => removeColumnGroup(groupConfig.id)}
+                            />
+                          )}
+                        </div>
+                      </div>
+                  
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Nombre del período</label>
+                          <InputText 
+                            value={groupConfig.label} 
+                            onChange={(e) => updateColumnGroup(groupConfig.id, { label: e.target.value })} 
+                            className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Color</label>
+                          <div className="flex gap-2 items-center">
+                            <ColorPicker 
+                              value={groupConfig.color.replace('#', '')} 
+                              onChange={(e) => updateColumnGroup(groupConfig.id, { color: `#${e.value}` })} 
+                            />
+                            <InputText 
+                              value={groupConfig.color} 
+                              onChange={(e) => updateColumnGroup(groupConfig.id, { color: e.target.value })}
+                              className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                              placeholder="#000000"
+                            />
+                          </div>
+                        </div>
+                      </div>
+      
+                      {/* Sección de columnas del período */}
+                      <div className="border-t pt-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <h5 className="font-medium">Columnas del Período</h5>
+                          <span className="text-sm text-gray-500">{groupConfig.columns.length} columnas</span>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 gap-3">
+                          {groupConfig.columns.map((excelConfig, colIndex) => {
+                            const isNewColumn = excelConfig.isNew;
+                            return (
+                              <div 
+                                key={excelConfig.id} 
+                                className={`flex gap-3 items-center p-3 rounded transition-all duration-500 ${
+                                  isNewColumn 
+                                    ? 'bg-green-100 border-2 border-green-300 shadow-md' 
+                                    : 'bg-gray-50'
+                                }`}
+                              >
+                                <span className="text-sm font-medium w-8 text-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                  {getColumnPositionInGroup(groupConfig.id, colIndex)}
+                                </span>
+                                
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <label className="block text-xs text-gray-600">Nombre</label>
+                                    {isNewColumn && (
+                                      <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
+                                        ¡NUEVA!
                                       </span>
                                     )}
                                   </div>
+                                  <InputText
+                                    value={excelConfig.label}
+                                    onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
+                                    className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                    placeholder="Nombre de la actividad"
+                                  />
                                 </div>
-                            
-                                <div className="flex gap-2">
+                              
+                                <div className="w-32">
+                                  <label className="block text-xs text-gray-600 mb-1">Fecha</label>
+                                  <InputText
+                                    value={excelConfig.date || ''}
+                                    onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { date: e.target.value })}
+                                    className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                    placeholder="DD-MMM-AA"
+                                  />
+                                </div>
+                                
+                                <div className="w-20">
+                                  <label className="block text-xs text-gray-600 mb-1">Puntos</label>
+                                  <InputNumber
+                                    value={excelConfig.points}
+                                    onValueChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: e.value || 0 })}
+                                    className="w-20 text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                    min={0}
+                                    max={100}
+                                  />
+                                </div>
+                                
+                                {groupConfig.columns.length > 1 && (
                                   <Button
-                                    icon="pi pi-plus"
-                                    className="p-button-sm p-button-success"
-                                    tooltip="Agregar columna"
-                                    onClick={() => addColumnToGroup(groupConfig.id, typePeriodGroup)}
+                                    icon="pi pi-trash"
+                                    className="p-button-sm p-button-danger p-button-text"
+                                    tooltip="Eliminar columna"
+                                    onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
                                   />
-                                  {groupConfig.columns.length > 1 && (
-                                    <Button
-                                      icon="pi pi-trash"
-                                      className="p-button-sm p-button-danger"
-                                      tooltip="Eliminar período"
-                                      onClick={() => removeColumnGroup(groupConfig.id)}
-                                    />
-                                  )}
-                                </div>
+                                )}
                               </div>
-                          
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                <div>
-                                  <label className="block text-sm font-medium mb-1">Nombre del período</label>
-                                  <InputText 
-                                    value={groupConfig.label} 
-                                    onChange={(e) => updateColumnGroup(groupConfig.id, { label: e.target.value })} 
-                                    className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                  />
-                                </div>
-                                
-                                <div>
-                                  <label className="block text-sm font-medium mb-1">Color</label>
-                                  <div className="flex gap-2 items-center">
-                                    <ColorPicker 
-                                      value={groupConfig.color.replace('#', '')} 
-                                      onChange={(e) => updateColumnGroup(groupConfig.id, { color: `#${e.value}` })} 
-                                    />
-                                    <InputText 
-                                      value={groupConfig.color} 
-                                      onChange={(e) => updateColumnGroup(groupConfig.id, { color: e.target.value })}
-                                      className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                      placeholder="#000000"
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-          
-                              {/* Sección de columnas del período */}
-                              <div className="border-t pt-4">
-
-                                <div className="flex justify-between items-center mb-3">
-                                  <h5 className="font-medium">Columnas del Período</h5>
-                                  <span className="text-sm text-gray-500">{groupConfig.columns.length} columnas</span>
-                                </div>
-                                
-                                <div className="grid grid-cols-1 gap-3">
-                                  {groupConfig.columns.map((excelConfig, colIndex) => {
-                                    const isNewColumn = excelConfig.isNew;
-                                    return (
-                                      <div 
-                                        key={excelConfig.id} 
-                                        className={`flex gap-3 items-center p-3 rounded transition-all duration-500 ${
-                                          isNewColumn 
-                                            ? 'bg-green-100 border-2 border-green-300 shadow-md' 
-                                            : 'bg-gray-50'
-                                        }`}
-                                      >
-                                        <span className="text-sm font-medium w-8 text-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                          {getColumnPositionInGroup(excelConfig.id, colIndex)}
-                                        </span>
-                                        
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2 mb-1">
-                                            <label className="block text-xs text-gray-600">Nombre</label>
-                                            {isNewColumn && (
-                                              <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
-                                                ¡NUEVA!
-                                              </span>
-                                            )}
-                                          </div>
-                                          <InputText
-                                            value={excelConfig.label}
-                                            onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
-                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                            placeholder="Nombre de la actividad"
-                                          />
-                                        </div>
-                                      
-                                        <div className="w-32">
-                                          <label className="block text-xs text-gray-600 mb-1">Fecha</label>
-                                          <InputText
-                                            value={excelConfig.date}
-                                            onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { date: e.target.value })}
-                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                            placeholder="DD-MMM-AA"
-                                          />
-                                        </div>
-                                        
-                                        <div className="w-20">
-                                          <label className="block text-xs text-gray-600 mb-1">Puntos</label>
-                                          <InputNumber
-                                            value={excelConfig.points}
-                                            onValueChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: e.value || 0 })}
-                                            className="w-20 text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                            min={0}
-                                            max={100}
-                                          />
-                                        </div>
-                                        
-                                        {groupConfig.columns.length > 1 && (
-                                          <Button
-                                            icon="pi pi-trash"
-                                            className="p-button-sm p-button-danger p-button-text"
-                                            tooltip="Eliminar columna"
-                                            onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
-                                          />
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                                
-                              </div>
-                            </Card>
-                          );
-                        })
-                      )}
-                    </>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </Card>
                   );
                 })}
               </div>
@@ -784,158 +851,90 @@ const ConfiguracionHoja = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-0">
               
               {/* Columnas Fijas Izquierdas */}
-              {groupSectionConfig.left.map((arrayColumnConfig) => {
-                return (
-                  <>
-                    {(
-                      arrayColumnConfig.map((groupConfig, indexGroup) => {
-                        groupConfig.columns.map((excelConfig, colIndex) => {
-                          const isNewColumn = excelConfig.isNew;
-                          return (
-                            <Card>
-                              <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold">Columnas Fijas Izquierdas</h4>
-                                <Button
-                                  icon="pi pi-plus"
-                                  className="p-button-sm p-button-success"
-                                  onClick={() => addColumnToGroup(groupConfig.id, typeColumnsGroup)}
-                                  tooltip="Agregar columna"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <div 
-                                  key={indexGroup + '_' + colIndex} 
-                                  className={`flex gap-2 items-center p-2 rounded transition-all duration-500 ${
-                                    isNewColumn 
-                                      ? 'bg-green-100 border-2 border-green-300 shadow-md' 
-                                      : 'bg-transparent'
-                                  }`}
-                                >
-                                  <span className="text-sm text-gray-500 w-8">{getExcelColumnName(indexGroup + 1)}</span>
-                                  <div className="flex-1 flex items-center gap-2">
-                                    <InputText
-                                      value={excelConfig.label}
-                                      onChange={e => updateColumnFromGroup(groupConfig.id, indexGroup, { label: e.target.value })}
-                                      className="flex-1 bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                    />
-                                    {isNewColumn && (
-                                      <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
-                                        ¡NUEVA!
-                                      </span>
-                                    )}
-                                  </div>
-                                  <Button
-                                    icon="pi pi-trash"
-                                    className="p-button-sm p-button-danger p-button-text"
-                                    onClick={() => removeColumnFromGroup(groupConfig.id, indexGroup)}
-                                  />
-                                </div>
-                              </div>
-                            </Card>
-                          );
-                        });
-                      })
+              {groupSectionConfig.left.length > 0 && (
+                <Card>
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="font-bold">Columnas Fijas Izquierdas</h4>
+                    <Button
+                      icon="pi pi-plus"
+                      className="p-button-sm p-button-success"
+                      onClick={() => addColumnToGroup(groupSectionConfig.left[0]?.id || '', typeColumnsGroup)}
+                      tooltip="Agregar columna"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    {groupSectionConfig.left.map((groupConfig) =>
+                      groupConfig.columns.map((excelConfig, colIndex) => (
+                        <div 
+                          key={`${groupConfig.id}-${excelConfig.id}`}
+                          className="flex gap-2 items-center p-2 rounded bg-gray-50"
+                        >
+                          <span className="text-sm text-gray-500 w-8">
+                            {getExcelColumnName(colIndex + 1)}
+                          </span>
+                          <div className="flex-1">
+                            <InputText
+                              value={excelConfig.label}
+                              onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
+                              className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                            />
+                          </div>
+                          {groupConfig.columns.length > 1 && (
+                            <Button
+                              icon="pi pi-trash"
+                              className="p-button-sm p-button-danger p-button-text"
+                              onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
+                            />
+                          )}
+                        </div>
+                      ))
                     )}
-                  </>
-                );
-              })}
+                  </div>
+                </Card>
+              )}
 
               {/* Columnas Fijas Derechas */}
-              {groupSectionConfig.right.map((arrayColumnConfig) => {
-                return (
-                  <>
-                    {(
-                      arrayColumnConfig.map((groupConfig, indexGroup) => {
-                        groupConfig.columns.map((excelConfig, colIndex) => {
-                          const isNewColumn = excelConfig.isNew;
-                          return (
-                            <Card>
-                              <div className="flex justify-between items-center mb-4">
-                                <h4 className="font-bold">Columnas Fijas Derechas</h4>
-                                <Button
-                                  icon="pi pi-plus"
-                                  className="p-button-sm p-button-success"
-                                  onClick={() => addColumnToGroup(groupConfig.id, typeColumnsGroup)}
-                                  tooltip="Agregar columna"
-                                />
-                              </div>
-                              <div className="space-y-4">
-                                
-                                <div 
-                                  key={indexGroup} 
-                                  className={`p-3 rounded border transition-all duration-500 ${
-                                    isNewColumn 
-                                      ? 'bg-green-100 border-2 border-green-300 shadow-lg' 
-                                      : 'bg-gray-50 border-gray-200'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <span className="text-sm font-medium text-gray-500 w-8">
-                                      {getExcelColumnName(indexGroup + 1)}
-                                    </span>
-                                    <h6 className="font-medium text-gray-700">Columna {indexGroup + 1}</h6>
-                                    {isNewColumn && (
-                                      <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
-                                        ¡NUEVA!
-                                      </span>
-                                    )}
-                                    <div className="flex-1"></div>
-                                    <Button
-                                      icon="pi pi-trash"
-                                      className="p-button-sm p-button-danger p-button-text"
-                                      onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
-                                      tooltip="Eliminar columna"
-                                    />
-                                  </div>
-                                  
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div>
-                                      <label className="block text-xs text-gray-600 mb-1">Nombre *</label>
-                                      <InputText
-                                        value={excelConfig.label}
-                                        onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
-                                        className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                        placeholder="Nombre de la columna"
-                                      />
-                                    </div>
-                                    
-                                    <div>
-                                      <label className="block text-xs text-gray-600 mb-1">Fecha (opcional)</label>
-                                      <InputText
-                                        value={excelConfig.date || ''}
-                                        onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { date: e.target.value === '' ? undefined : e.target.value })}
-                                        className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                        placeholder="DD-MMM-AA"
-                                      />
-                                    </div>
-                                    
-                                    <div>
-                                      <label className="block text-xs text-gray-600 mb-1">Puntos (opcional)</label>
-                                      <InputNumber
-                                        value={excelConfig.points ?? null}
-                                        onValueChange={(e) => {
-                                          const newValue = e.value !== null && e.value !== undefined ? e.value : undefined;
-                                          updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: newValue });
-                                        }}
-                                        className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                        placeholder="0"
-                                        min={0}
-                                        max={100}
-                                        showButtons={false}
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                                
-                              </div>
-                            </Card>
-                          );
-                        });
-                      })
+              {groupSectionConfig.right.length > 0 && (
+                <Card>
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="font-bold">Columnas Fijas Derechas</h4>
+                    <Button
+                      icon="pi pi-plus"
+                      className="p-button-sm p-button-success"
+                      onClick={() => addColumnToGroup(groupSectionConfig.right[0]?.id || '', typeColumnsGroup)}
+                      tooltip="Agregar columna"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    {groupSectionConfig.right.map((groupConfig) =>
+                      groupConfig.columns.map((excelConfig, colIndex) => (
+                        <div 
+                          key={`${groupConfig.id}-${excelConfig.id}`}
+                          className="flex gap-2 items-center p-2 rounded bg-gray-50"
+                        >
+                          <span className="text-sm text-gray-500 w-8">
+                            {getExcelColumnName(colIndex + 1)}
+                          </span>
+                          <div className="flex-1">
+                            <InputText
+                              value={excelConfig.label}
+                              onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
+                              className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                            />
+                          </div>
+                          {groupConfig.columns.length > 1 && (
+                            <Button
+                              icon="pi pi-trash"
+                              className="p-button-sm p-button-danger p-button-text"
+                              onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
+                            />
+                          )}
+                        </div>
+                      ))
                     )}
-                  </>
-                );
-              })}
+                  </div>
+                </Card>
+              )}
 
             </div>
           </TabPanel>
