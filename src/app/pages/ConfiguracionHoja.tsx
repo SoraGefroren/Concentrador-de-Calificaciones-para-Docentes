@@ -725,7 +725,7 @@ const ConfiguracionHoja = () => {
                                             )}
                                           </div>
                                           <InputText
-                                            value={excelConfig.header}
+                                            value={excelConfig.label}
                                             onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
                                             className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                                             placeholder="Nombre de la actividad"
@@ -804,7 +804,7 @@ const ConfiguracionHoja = () => {
                               </div>
                               <div className="space-y-2">
                                 <div 
-                                  key={indexGroup} 
+                                  key={indexGroup + '_' + colIndex} 
                                   className={`flex gap-2 items-center p-2 rounded transition-all duration-500 ${
                                     isNewColumn 
                                       ? 'bg-green-100 border-2 border-green-300 shadow-md' 
@@ -860,79 +860,73 @@ const ConfiguracionHoja = () => {
                                 />
                               </div>
                               <div className="space-y-4">
-                                {groupSectionConfig.right.map((column, index) => {
-                                  const totalPeriodsColumns = extendedConfig.periods.reduce((sum, p) => sum + p.numColumns, 0);
-                                  const position = extendedConfig.fixedColumnsLeft.length + totalPeriodsColumns + index + 1;
-                                  const isNewRight = newlyAdded.fixedColumnsRight.has(index);
+                                
+                                <div 
+                                  key={indexGroup} 
+                                  className={`p-3 rounded border transition-all duration-500 ${
+                                    isNewColumn 
+                                      ? 'bg-green-100 border-2 border-green-300 shadow-lg' 
+                                      : 'bg-gray-50 border-gray-200'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-sm font-medium text-gray-500 w-8">
+                                      {getExcelColumnName(indexGroup + 1)}
+                                    </span>
+                                    <h6 className="font-medium text-gray-700">Columna {indexGroup + 1}</h6>
+                                    {isNewColumn && (
+                                      <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
+                                        ¡NUEVA!
+                                      </span>
+                                    )}
+                                    <div className="flex-1"></div>
+                                    <Button
+                                      icon="pi pi-trash"
+                                      className="p-button-sm p-button-danger p-button-text"
+                                      onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
+                                      tooltip="Eliminar columna"
+                                    />
+                                  </div>
                                   
-                                  return (
-                                    <div 
-                                      key={index} 
-                                      className={`p-3 rounded border transition-all duration-500 ${
-                                        isNewRight 
-                                          ? 'bg-green-100 border-2 border-green-300 shadow-lg' 
-                                          : 'bg-gray-50 border-gray-200'
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-sm font-medium text-gray-500 w-8">
-                                          {getExcelColumnName(position)}
-                                        </span>
-                                        <h6 className="font-medium text-gray-700">Columna {index + 1}</h6>
-                                        {isNewRight && (
-                                          <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
-                                            ¡NUEVA!
-                                          </span>
-                                        )}
-                                        <div className="flex-1"></div>
-                                        <Button
-                                          icon="pi pi-trash"
-                                          className="p-button-sm p-button-danger p-button-text"
-                                          onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
-                                          tooltip="Eliminar columna"
-                                        />
-                                      </div>
-                                      
-                                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        <div>
-                                          <label className="block text-xs text-gray-600 mb-1">Nombre *</label>
-                                          <InputText
-                                            value={excelConfig.label}
-                                            onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
-                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                            placeholder="Nombre de la columna"
-                                          />
-                                        </div>
-                                        
-                                        <div>
-                                          <label className="block text-xs text-gray-600 mb-1">Fecha (opcional)</label>
-                                          <InputText
-                                            value={excelConfig.date || ''}
-                                            onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { date: e.target.value === '' ? undefined : e.target.value })}
-                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                            placeholder="DD-MMM-AA"
-                                          />
-                                        </div>
-                                        
-                                        <div>
-                                          <label className="block text-xs text-gray-600 mb-1">Puntos (opcional)</label>
-                                          <InputNumber
-                                            value={excelConfig.points ?? null}
-                                            onValueChange={(e) => {
-                                              const newValue = e.value !== null && e.value !== undefined ? e.value : undefined;
-                                              updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: newValue });
-                                            }}
-                                            className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                                            placeholder="0"
-                                            min={0}
-                                            max={100}
-                                            showButtons={false}
-                                          />
-                                        </div>
-                                      </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="block text-xs text-gray-600 mb-1">Nombre *</label>
+                                      <InputText
+                                        value={excelConfig.label}
+                                        onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
+                                        className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                        placeholder="Nombre de la columna"
+                                      />
                                     </div>
-                                  );
-                                })}
+                                    
+                                    <div>
+                                      <label className="block text-xs text-gray-600 mb-1">Fecha (opcional)</label>
+                                      <InputText
+                                        value={excelConfig.date || ''}
+                                        onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { date: e.target.value === '' ? undefined : e.target.value })}
+                                        className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                        placeholder="DD-MMM-AA"
+                                      />
+                                    </div>
+                                    
+                                    <div>
+                                      <label className="block text-xs text-gray-600 mb-1">Puntos (opcional)</label>
+                                      <InputNumber
+                                        value={excelConfig.points ?? null}
+                                        onValueChange={(e) => {
+                                          const newValue = e.value !== null && e.value !== undefined ? e.value : undefined;
+                                          updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: newValue });
+                                        }}
+                                        className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                        placeholder="0"
+                                        min={0}
+                                        max={100}
+                                        showButtons={false}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                                
                               </div>
                             </Card>
                           );
