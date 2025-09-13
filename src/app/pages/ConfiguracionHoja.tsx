@@ -1,7 +1,8 @@
 import Menu from '../common/Menu.tsx';
 import { useRef, useState } from 'react';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
-import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
+import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typeInfoGroup, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
+import { DEFAULT_FIXED_LEFT_HEADERS, DEFAULT_FIXED_RIGHT_HEADERS, DEFAULT_ACTIVITY_TEMPLATES } from '../features/configuration/types/HeaderConfiguration.ts';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
@@ -24,12 +25,142 @@ const ConfiguracionHoja = () => {
   // Intentar obtener datos del contexto si existen, pero no depender de ellos
   const context = useExcelContext();
   const excelData: ColumnExcelData[] = context?.excelData || [];
-  
+
   // Determinar si hay datos de Excel para mostrar o no el Menu
   const hasExcelData: boolean = (excelData).length > 0;
+  
+  /*
+   * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
+   */
+  // Calcular automáticamente los rangos de los grupos de columnas
+  const recalculateConfigRanges = (aryColumnConfig: ColumnGroupConfig[], bSetConfig: boolean = true): {
+    aryColumnConfig: ColumnGroupConfig[];
+    newGroupIndex: number;
+    newColIndex: number
+  } => {
+    // Redefinir el ID de los grupos de columnas
+    let currentColumnIndex = 0;
+    let newGroupIndex = -1;
+    let newColIndex = -1;
+    for (let x = 0; x < aryColumnConfig.length; x++) {
+      const colsConfig = aryColumnConfig[x];
+      const firstColIndex = currentColumnIndex;
+      const lastColIndex = currentColumnIndex + (colsConfig.columns.length - 1);
+      for (let y = 0; y < colsConfig.columns.length; y++) {
+        if ((newGroupIndex === -1) && (newColIndex === -1) && !aryColumnConfig[x].columns[y].id) {
+          newColIndex = y;
+        }
+        // Redefinir el ID de las columnas de los grupos de columnas
+        aryColumnConfig[x].columns[y].id = getExcelColumnName(currentColumnIndex);
+        currentColumnIndex += 1;
+      }
+      if ((newGroupIndex === -1) && (!colsConfig.id || (newColIndex !== -1))) {
+        if (newColIndex === -1) {
+          newColIndex = (colsConfig.columns.length - 1);
+        }
+        newGroupIndex = x;
+      }
+      aryColumnConfig[x].id = getExcelColumnName(firstColIndex) + ':' + getExcelColumnName(lastColIndex);
+    }
+    // Valida si debe actualizar la configuración
+    if (bSetConfig) {
+      // Actualizar la configuración de los grupos de columnas
+      setConfig(aryColumnConfig ? [...aryColumnConfig] : []);
+    }
+    // Devuelve los indices de los primeros grupos sin ID
+    return {
+      aryColumnConfig,
+      newGroupIndex,
+      newColIndex
+    };
+  };
+  
+  // Función para generar configuración por defecto
+  const generateDefaultColumnConfig = (): ColumnGroupConfig[] => {
+    // Preparar arreglo para la configuración por defecto
+    const aryDefaultConfig: ColumnGroupConfig[] = [];
 
+    // Colores para los períodos
+    const periodColors = {
+      black: '#151c25ff',
+      green: '#059669', 
+      purple: '#7c3aed'
+    };
+
+    // 1. Columnas Fijas Izquierdas
+    const leftFixedColumns: ColumnExcelConfig[] = DEFAULT_FIXED_LEFT_HEADERS
+      .map((header, index) => ({
+        id: '',
+        label: header.name,
+        date: header.date || null,
+        points: header.points || null
+      }));
+    aryDefaultConfig.push({
+      id: '',
+      color: '',
+      label: 'Información del Estudiante',
+      type: typeInfoGroup,
+      columns: leftFixedColumns
+    });
+
+    // 2. Períodos de Actividades (black, green, purple)
+    Object.entries(DEFAULT_ACTIVITY_TEMPLATES)
+      .forEach(([colorKey, template]) => {
+        const periodColumns: ColumnExcelConfig[] = template.activities
+          .map((activity, index) => ({
+            id: '',
+            label: activity.name,
+            date: activity.date || null,
+            points: activity.points || null
+          }));
+        aryDefaultConfig.push({
+          id: '',
+          color: periodColors[colorKey as keyof typeof periodColors],
+          label: template.periodName,
+          type: typePeriodGroup,
+          columns: periodColumns
+        });
+      });
+
+    // 3. Columnas Fijas Derechas
+    const rightFixedColumns: ColumnExcelConfig[] = DEFAULT_FIXED_RIGHT_HEADERS
+      .map((header, index) => ({
+        id: '',
+        label: header.name,
+        date: header.date || null,
+        points: header.points || null
+      }));
+    aryDefaultConfig.push({
+      id: '',
+      color: '',
+      label: 'Cálculos y Totales',
+      type: typeColumnsGroup,
+      columns: rightFixedColumns
+    });
+
+    // Calcular automáticamente los rangos de los grupos de columnas
+    const recalculatedRanges = recalculateConfigRanges(aryDefaultConfig, false);
+
+    // Devolver la configuración generada
+    return recalculatedRanges.aryColumnConfig;
+  };
+
+  const updatedColumnGroup = (colGroupConfig: ColumnGroupConfig[]): void => {
+    recalculateConfigRanges(colGroupConfig ? [...colGroupConfig] : [], true);
+  };
+
+  /*
+   * Variable de estado para la configuración de los grupos de columnas
+   */
   // Usar configuración existente o valores por defecto
-  const [columnConfig, setConfig] = useState<ColumnGroupConfig[]>(context?.columnConfig || []);
+  const [columnConfig, setConfig] = useState<ColumnGroupConfig[]>(() => {
+    // Si hay configuración en el contexto, usarla
+    if (context?.columnConfig && context.columnConfig.length > 0) {
+      return context.columnConfig;
+    }
+    // Si no hay configuración, generar la configuración por defecto
+    return generateDefaultColumnConfig();
+  });
 
   // Apuntador para manejar el tab Activo
   const [activeTab, setActiveTab] = useState(0);
@@ -51,7 +182,7 @@ const ConfiguracionHoja = () => {
     let foundNonPeriod = false;
     
     columnConfig.forEach(groupConfig => {
-      if (groupConfig.type === typePeriodGroup) {
+      if (groupConfig.type !== typePeriodGroup) {
         if (!foundNonPeriod) {
           result.left.push(groupConfig);
         } else {
@@ -97,66 +228,6 @@ const ConfiguracionHoja = () => {
   }
   
   const groupPreviewConfig = groupPreviewConfiguration();
-
-  /*
-   * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
-   */
-  const updatedColumnGroup = (colGroupConfig: ColumnGroupConfig[]): void => {
-    setConfig(colGroupConfig ? [...colGroupConfig] : []);
-    recalculateColumnGroupRanges();
-  };
-
-  // Función para calcular la posición de una columna específica dentro de un grupo
-  const getColumnPositionInGroup = (groupId: string, columnIndex: number): string => {
-    // Buscar el grupo correspondiente
-    const group = columnConfig?.find(p => p.id === groupId);
-    // Si el grupo no existe, entonces regresar cadena vacía
-    if (!group) return '';
-    const groupIndex = columnConfig.indexOf(group) | -1;
-    // Calcular la cantidad de columnas a la izquierda del grupo
-    let leftColumnsCount = -1;
-    for (let i = 0; i < groupIndex; i++) {
-      const colsConfig = columnConfig[i] || [];
-      leftColumnsCount += colsConfig.columns.length;
-    }
-    // Calcular la posición de la columna dentro del grupo
-    return getExcelColumnName((leftColumnsCount + 1) + columnIndex);
-  };
-
-  // Calcular automáticamente los rangos de los grupos de columnas
-  const recalculateColumnGroupRanges = (): { newGroupIndex: number; newColIndex: number } => {
-    // Redefinir el ID de los grupos de columnas
-    let currentColumnIndex = 0;
-    let newGroupIndex = -1;
-    let newColIndex = -1;
-    for (let x = 0; x < columnConfig.length; x++) {
-      const colsConfig = columnConfig[x];
-      const firstColIndex = currentColumnIndex;
-      const lastColIndex = currentColumnIndex + (colsConfig.columns.length - 1);
-      for (let y = 0; y < colsConfig.columns.length; y++) {
-        if ((newGroupIndex === -1) && (newColIndex === -1) && !columnConfig[x].columns[y].id) {
-          newColIndex = y;
-        }
-        // Redefinir el ID de las columnas de los grupos de columnas
-        columnConfig[x].columns[y].id = getExcelColumnName(currentColumnIndex);
-        currentColumnIndex += 1;
-      }
-      if ((newGroupIndex === -1) && (!colsConfig.id || (newColIndex !== -1))) {
-        if (newColIndex === -1) {
-          newColIndex = (colsConfig.columns.length - 1);
-        }
-        newGroupIndex = x;
-      }
-      columnConfig[x].id = getExcelColumnName(firstColIndex) + ':' + getExcelColumnName(lastColIndex);
-    }
-    // Actualizar la configuración de los grupos de columnas
-    setConfig(columnConfig ? [...columnConfig] : []);
-    // Devuelve los indices de los primeros grupos sin ID
-    return {
-      newGroupIndex,
-      newColIndex
-    };
-  };
 
   /*
    * FUNCIONES PARA TRATAR CON GRUPOS DE COLUMNAS
@@ -274,11 +345,12 @@ const ConfiguracionHoja = () => {
     const groupIndex = columnConfig.indexOf(group);
     const newColumn: ColumnExcelConfig = {
       id: ``,
-      label: (typeGroup === 'period')
+      label: (typeGroup === typePeriodGroup)
         ? `Actividad`
         : `Columna`,
       date: null,
-      points: null
+      points: null,
+      isNew: true
     };
     columnConfig[groupIndex].columns.push(newColumn);
     // Actualizar la configuración de los grupos de columnas
@@ -674,35 +746,37 @@ const ConfiguracionHoja = () => {
           </div>
         </div>
 
-        {/* Panel de Períodos */}
+        {/* Tabs de configuración */}
         <TabView activeIndex={activeTab} onTabChange={(e) => setActiveTab(e.index)}  className="p-0">
           
-          {/* Panel de Columnas Centrales */}
+          {/* 1. Panel de Columnas Centrales */}
           <TabPanel header="Configuración de Períodos" leftIcon="pi pi-calendar mr-2" className="p-0">
             <Card className="mb-6 p-0">
+              {/* Titulo de sección y, control para agregar un nuevo Grupo de Columnas */}
               <div className="flex justify-between items-center mb-4">
-                <h4 className="font-bold">Configuración de Períodos de Colores</h4>
+                <h4 className="font-bold">Configuración de Períodos</h4>
                 <Button
                   label="Agregar Período"
                   icon="pi pi-plus"
-                  className="p-button-success"
-                  onClick={() => addColumnGroup('period')}
+                  className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                  onClick={() => addColumnGroup(typePeriodGroup)}
                 />
               </div>
-              
+              {/* Grupos de Columnas */}
               <div className="grid grid-cols-1 gap-6">
                 {groupSectionConfig.center.map((groupConfig) => {
-                  const isNew = groupConfig.isNew;
+                  const isNewGroup = groupConfig.isNew;
                   return (
                     <Card 
                       key={groupConfig.id} 
                       className={`border-l-4 transition-all duration-500 ${
-                        isNew 
+                        isNewGroup
                           ? 'border-2 border-green-400 shadow-lg shadow-green-200 bg-green-50' 
                           : ''
                       }`}
                       style={{ borderLeftColor: groupConfig.color }}
                     >
+                      {/* Controles para agregar columnas al Grupo, o eliminar al Grupo */}
                       <div className="flex justify-between items-start mb-4">
                         <div className="flex items-center gap-3">
                           <div 
@@ -711,7 +785,7 @@ const ConfiguracionHoja = () => {
                           ></div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-bold text-lg">{groupConfig.label}</h3>
-                            {isNew && (
+                            {isNewGroup && (
                               <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full animate-pulse">
                                 ¡NUEVO!
                               </span>
@@ -721,22 +795,23 @@ const ConfiguracionHoja = () => {
                     
                         <div className="flex gap-2">
                           <Button
-                            icon="pi pi-plus"
-                            className="p-button-sm p-button-success"
                             tooltip="Agregar columna"
-                            onClick={() => addColumnToGroup(groupConfig.id, 'period')}
+                            className="p-button-sm p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                            icon="pi pi-plus"
+                            onClick={() => addColumnToGroup(groupConfig.id, typePeriodGroup)}
                           />
                           {columnConfig.filter(g => g.type === typePeriodGroup).length > 1 && (
                             <Button
-                              icon="pi pi-trash"
-                              className="p-button-sm p-button-danger"
                               tooltip="Eliminar período"
+                              className="p-button-sm p-button-danger text-white bg-red-500 hover:bg-red-800 p-2"
+                              icon="pi pi-trash"
                               onClick={() => removeColumnGroup(groupConfig.id)}
                             />
                           )}
                         </div>
                       </div>
                   
+                      {/* Titulo y color del Grupo */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
                           <label className="block text-sm font-medium mb-1">Nombre del período</label>
@@ -764,7 +839,7 @@ const ConfiguracionHoja = () => {
                         </div>
                       </div>
       
-                      {/* Sección de columnas del período */}
+                      {/* Columnas de la Grupo */}
                       <div className="border-t pt-4">
                         <div className="flex justify-between items-center mb-3">
                           <h5 className="font-medium">Columnas del Período</h5>
@@ -772,7 +847,7 @@ const ConfiguracionHoja = () => {
                         </div>
                         
                         <div className="grid grid-cols-1 gap-3">
-                          {groupConfig.columns.map((excelConfig, colIndex) => {
+                          {groupConfig.columns.map((excelConfig) => {
                             const isNewColumn = excelConfig.isNew;
                             return (
                               <div 
@@ -784,7 +859,7 @@ const ConfiguracionHoja = () => {
                                 }`}
                               >
                                 <span className="text-sm font-medium w-8 text-center bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                  {getColumnPositionInGroup(groupConfig.id, colIndex)}
+                                  {excelConfig.id}
                                 </span>
                                 
                                 <div className="flex-1">
@@ -828,7 +903,7 @@ const ConfiguracionHoja = () => {
                                 {groupConfig.columns.length > 1 && (
                                   <Button
                                     icon="pi pi-trash"
-                                    className="p-button-sm p-button-danger p-button-text"
+                                    className="p-button-sm p-button-danger text-white bg-red-500 hover:bg-red-800 p-2"
                                     tooltip="Eliminar columna"
                                     onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
                                   />
@@ -845,32 +920,31 @@ const ConfiguracionHoja = () => {
             </Card>
           </TabPanel>
 
-          {/* Panel de Columnas Fijas */}
+          {/* 2. Panel de Columnas Fijas */}
           <TabPanel header="Columnas Fijas" leftIcon="pi pi-table mr-2" className="p-0">
-            
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-0">
               
-              {/* Columnas Fijas Izquierdas */}
+              {/* Grupo de Columnas Fijas Izquierdas */}
               {groupSectionConfig.left.length > 0 && (
-                <Card>
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-bold">Columnas Fijas Izquierdas</h4>
-                    <Button
-                      icon="pi pi-plus"
-                      className="p-button-sm p-button-success"
-                      onClick={() => addColumnToGroup(groupSectionConfig.left[0]?.id || '', typeColumnsGroup)}
-                      tooltip="Agregar columna"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    {groupSectionConfig.left.map((groupConfig) =>
-                      groupConfig.columns.map((excelConfig, colIndex) => (
+                groupSectionConfig.left.map((groupConfig) =>
+                  <Card>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold">Columnas Fijas Izquierdas</h4>
+                      <Button
+                        icon="pi pi-plus"
+                        className="p-button-sm p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                        onClick={() => addColumnToGroup(groupConfig.id || '', typeColumnsGroup)}
+                        tooltip="Agregar columna"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      {groupConfig.columns.map((excelConfig) => (
                         <div 
                           key={`${groupConfig.id}-${excelConfig.id}`}
                           className="flex gap-2 items-center p-2 rounded bg-gray-50"
                         >
                           <span className="text-sm text-gray-500 w-8">
-                            {getExcelColumnName(colIndex + 1)}
+                            {excelConfig.id}
                           </span>
                           <div className="flex-1">
                             <InputText
@@ -882,63 +956,65 @@ const ConfiguracionHoja = () => {
                           {groupConfig.columns.length > 1 && (
                             <Button
                               icon="pi pi-trash"
-                              className="p-button-sm p-button-danger p-button-text"
+                              className="p-button-sm p-button-danger text-white bg-red-500 hover:bg-red-800 p-2"
                               onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
                             />
                           )}
                         </div>
-                      ))
-                    )}
-                  </div>
-                </Card>
+                      ))}
+                    </div>
+                  </Card>
+                )
               )}
 
-              {/* Columnas Fijas Derechas */}
+              {/* Grupo de Columnas Fijas Derechas */}
               {groupSectionConfig.right.length > 0 && (
-                <Card>
-                  <div className="flex justify-between items-center mb-4">
-                    <h4 className="font-bold">Columnas Fijas Derechas</h4>
-                    <Button
-                      icon="pi pi-plus"
-                      className="p-button-sm p-button-success"
-                      onClick={() => addColumnToGroup(groupSectionConfig.right[0]?.id || '', typeColumnsGroup)}
-                      tooltip="Agregar columna"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    {groupSectionConfig.right.map((groupConfig) =>
-                      groupConfig.columns.map((excelConfig, colIndex) => (
-                        <div 
-                          key={`${groupConfig.id}-${excelConfig.id}`}
-                          className="flex gap-2 items-center p-2 rounded bg-gray-50"
-                        >
-                          <span className="text-sm text-gray-500 w-8">
-                            {getExcelColumnName(colIndex + 1)}
-                          </span>
-                          <div className="flex-1">
-                            <InputText
-                              value={excelConfig.label}
-                              onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
-                              className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                            />
+                groupSectionConfig.right.map((groupConfig) =>
+                  <Card>
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-bold">Columnas Fijas Derechas</h4>
+                      <Button
+                        icon="pi pi-plus"
+                        className="p-button-sm p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                        onClick={() => addColumnToGroup(groupConfig.id || '', typeColumnsGroup)}
+                        tooltip="Agregar columna"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      {groupConfig.columns.map((excelConfig) => (
+                          <div 
+                            key={`${groupConfig.id}-${excelConfig.id}`}
+                            className="flex gap-2 items-center p-2 rounded bg-gray-50"
+                          >
+                            <span className="text-sm text-gray-500 w-8">
+                              {excelConfig.id}
+                            </span>
+                            <div className="flex-1">
+                              <InputText
+                                value={excelConfig.label}
+                                onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
+                                className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                              />
+                            </div>
+                            {groupConfig.columns.length > 1 && (
+                              <Button
+                                icon="pi pi-trash"
+                                className="p-button-sm p-button-danger text-white bg-red-500 hover:bg-red-800 p-2"
+                                onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
+                              />
+                            )}
                           </div>
-                          {groupConfig.columns.length > 1 && (
-                            <Button
-                              icon="pi pi-trash"
-                              className="p-button-sm p-button-danger p-button-text"
-                              onClick={() => removeColumnFromGroup(groupConfig.id, excelConfig.id)}
-                            />
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </Card>
+                        ))
+                      }
+                    </div>
+                  </Card>
+                )
               )}
 
             </div>
           </TabPanel>
 
+          {/* 3. Panel con Vista Previa */}
           <TabPanel header="Vista Previa" leftIcon="pi pi-eye mr-2">
             <Card className="p-0">
               <h4 className="font-bold mb-4">Vista Previa de la Estructura</h4>
@@ -993,7 +1069,6 @@ const ConfiguracionHoja = () => {
                   />
                 </DataTable>
               </div>
-
             </Card>
           </TabPanel>
         </TabView>
