@@ -1,8 +1,7 @@
 import Menu from '../common/Menu.tsx';
 import { useRef, useState } from 'react';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
-import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typeInfoGroup, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
-import { DEFAULT_FIXED_LEFT_HEADERS_INFO, DEFAULT_FIXED_RIGHT_HEADERS_COLS, DEFAULT_FIXED_RIGHT_HEADERS_INFO, DEFAULT_ACTIVITY_TEMPLATES } from '../features/configuration/types/HeaderConfiguration.ts';
+import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
@@ -14,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
-import { getExcelColumnName } from '../common/utils/clusterOfMethods.tsx';
+import { getDefaultColumnConfig, getExcelColumnName } from '../common/utils/clusterOfMethods.tsx';
 import * as XLSX from 'xlsx';
 
 const ConfiguracionHoja = () => {
@@ -62,88 +61,15 @@ const ConfiguracionHoja = () => {
   
   // Función para generar configuración por defecto
   const generateDefaultColumnConfig = (): ColumnGroupConfig[] => {
-    // Preparar arreglo para la configuración por defecto
-    const aryDefaultConfig: ColumnGroupConfig[] = [];
 
-    // Colores para los períodos
-    const periodColors = {
-      black: '#151c25ff',
-      green: '#059669', 
-      purple: '#7c3aed'
-    };
-
-    // 1. Columnas Fijas Izquierdas
-    const leftFixedColumns: ColumnExcelConfig[] = DEFAULT_FIXED_LEFT_HEADERS_INFO
-      .map((header, index) => ({
-        id: '',
-        label: header.name,
-        date: header.date || null,
-        points: header.points || null
-      }));
-    aryDefaultConfig.push({
-      id: '',
-      color: '',
-      label: 'Información del Estudiante',
-      type: typeInfoGroup,
-      columns: leftFixedColumns
-    });
-
-    // 2. Períodos de Actividades (black, green, purple)
-    Object.entries(DEFAULT_ACTIVITY_TEMPLATES)
-      .forEach(([colorKey, template]) => {
-        const periodColumns: ColumnExcelConfig[] = template.activities
-          .map((activity, index) => ({
-            id: '',
-            label: activity.name,
-            date: activity.date || null,
-            points: activity.points || null
-          }));
-        aryDefaultConfig.push({
-          id: '',
-          color: periodColors[colorKey as keyof typeof periodColors],
-          label: template.periodName,
-          type: typePeriodGroup,
-          columns: periodColumns
-        });
-      });
-
-    // 3. Columnas Fijas Derechas
-    const rightFixedColumnsCols: ColumnExcelConfig[] = DEFAULT_FIXED_RIGHT_HEADERS_COLS
-      .map((header, index) => ({
-        id: '',
-        label: header.name,
-        date: header.date || null,
-        points: header.points || null
-      }));
-    aryDefaultConfig.push({
-      id: '',
-      color: '',
-      label: 'Cálculos y Totales',
-      type: typeColumnsGroup,
-      columns: rightFixedColumnsCols
-    });
-
-    // 3. Columnas Fijas Derechas
-    const rightFixedColumnsInfo: ColumnExcelConfig[] = DEFAULT_FIXED_RIGHT_HEADERS_INFO
-      .map((header, index) => ({
-        id: '',
-        label: header.name,
-        date: header.date || null,
-        points: header.points || null
-      }));
-    aryDefaultConfig.push({
-      id: '',
-      color: '',
-      label: 'Cálculos y Totales',
-      type: typeInfoGroup,
-      columns: rightFixedColumnsInfo
-    });
+    // Generar configuración por defecto
+    const newAryColumnConfig = getDefaultColumnConfig();
 
     // Calcular automáticamente los rangos de los grupos de columnas
-    const newAryColumnConfig = recalculateConfigRanges(aryDefaultConfig, false);
+    const aryDefaultConfig = recalculateConfigRanges(newAryColumnConfig, false);
 
     // Devolver la configuración generada
-    return newAryColumnConfig;
+    return aryDefaultConfig;
   };
 
   const updatedColumnGroup = (colGroupConfig: ColumnGroupConfig[]): void => {

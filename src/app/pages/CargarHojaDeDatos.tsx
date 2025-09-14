@@ -1,48 +1,34 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useExcelContext } from '../common/contexts/ExcelContext';
 import { ProgressSpinner } from 'primereact/progressspinner';
 import { FileUpload } from 'primereact/fileupload';
 import { Card } from 'primereact/card';
 import { Button } from 'primereact/button';
+import { clearLocalStorage, updatedLocalStorage } from '../common/utils/clusterOfMethods';
 import FileUploadEvent from '../features/adds/FileUploadEvent';
+import { useExcelContext } from '../common/contexts/ExcelContext';
 
 const CargarHojaDeDatos = () => {
     // Variables de estado
     const navigate = useNavigate();
-    const [loading, setLoading] = useState(false);
     const context = useExcelContext();
-    const loadExcelFromFile = context?.loadExcelFromFile;
+    const [loading, setLoading] = useState(false);
 
     const handleCreateNew = () => {
         // Limpiar cualquier configuración previa
-        localStorage.removeItem('fileRoute');
-        localStorage.removeItem('excelData');
-        localStorage.removeItem('columnConfig');
-        
+        clearLocalStorage();
         // Navegar a la página de crear hoja
         navigate('/crear-hoja');
     }
 
-    const onUpload = async (event: FileUploadEvent) => {
-        if (!loadExcelFromFile) {
-            console.error('Excel context not available');
-            return;
-        }
-        
-        try {
-            setLoading(true);
-            const file = event.files[0];
-            const excelData = await loadExcelFromFile(file);
-            // Guardamos los datos en localStorage
-            localStorage.setItem('excelData', JSON.stringify(excelData));
-            localStorage.setItem('fileRoute', 'true');
+    const handleUploadFile = async (event: FileUploadEvent) => {
+        setLoading(true);
+        // Manejar la carga del archivo
+        if (await updatedLocalStorage(context, event)) {
+            // Navegar a la página principal si la carga fue exitosa
             navigate('/');
-        } catch (error) {
-            console.error('Error al cargar el archivo:', error);
-        } finally {
-            setLoading(false);
         }
+        setLoading(false);
     };
 
     const header = (
@@ -92,11 +78,11 @@ const CargarHojaDeDatos = () => {
                                     accept=".xlsx,.xls"
                                     maxFileSize={1000000}
                                     customUpload
-                                    uploadHandler={onUpload}
+                                    uploadHandler={handleUploadFile}
                                     auto
                                     chooseLabel="Cargar archivo Excel existente"
                                     className="w-full"
-                                    disabled={!loadExcelFromFile}
+                                    disabled={loading}
                                 />
                                 <p className="text-xs text-gray-500 mt-2 text-center">
                                      Cargar un archivo de calificaciones, formatos soportados: .xlsx, .xls (máximo 1MB)

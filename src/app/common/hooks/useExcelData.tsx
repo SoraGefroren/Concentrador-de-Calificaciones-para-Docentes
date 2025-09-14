@@ -21,14 +21,15 @@ export interface ColumnGroupConfig {
     id: string;         // Rango de las Columnas, Ejemplo: A1:D1, F1:L1
     color: string;      // Color de fondo del grupo de columnas
     label: string;      // Nombre del grupo de columnas
-    columns: Array<ColumnExcelConfig>;
-    type: 'info' | 'period' | 'columns';   // Tipo de grupo de columnas
     isNew?: boolean;    // Indica si el grupo es nuevo (no guardado aún)
+    type: 'info' | 'period' | 'columns';   // Tipo de grupo de columnas
+    columns: Array<ColumnExcelConfig>;
 }
 
 export const useExcelData = () => {
+
     // Carga inicial desde localStorage
-    const initialData = () => {
+    const initialExcelData = (): ColumnExcelData[] => {
         const savedData = localStorage.getItem('excelData');
         return savedData ? JSON.parse(savedData) : [];
     };
@@ -40,10 +41,9 @@ export const useExcelData = () => {
     };
 
     // Variables de estado
-    const [excelData, setExcelData] = useState<ColumnExcelData[]>(initialData());
-    const [columnConfig, setColumnConfig] = useState<ColumnGroupConfig[]>(initialColumnConfig());
-    const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [excelData, setExcelData] = useState<ColumnExcelData[]>(initialExcelData());
+    const [columnConfig, setColumnConfig] = useState<ColumnGroupConfig[]>(initialColumnConfig());
 
     // Función para procesar los datos del Excel
     const processExcelData = (jsonData: (string | number)[][]): ColumnExcelData[] => {
@@ -56,7 +56,7 @@ export const useExcelData = () => {
         );
     };
 
-    // Función para procesar la configuración de la cuarta hoja
+    // PENDIENTE: Función para procesar la configuración de la cuarta hoja
     const processColumnConfig = (configData: (string | number)[][]): ColumnGroupConfig[] => {
         const defaultConfig: ColumnGroupConfig[] = [];
         
@@ -101,6 +101,9 @@ export const useExcelData = () => {
         return config;
     };
 
+    /*
+     * Función para actualizar los datos y la configuración en el estado y en localStorage
+     */
     // Función para actualizar los datos
     const updateExcelData = (newData: ColumnExcelData[]) => {
         setExcelData(newData);
@@ -115,93 +118,14 @@ export const useExcelData = () => {
         return newConfig;
     };
 
-    const loadExcelFromPath = async (filePath: string): Promise<ColumnExcelData[]> => {
+    /*
+     * Función para leer un archivo Excel y actualizar los datos y la configuración
+     */
+    const loadExcelFromFile = async (file: File): Promise<{
+        columnConfig: ColumnGroupConfig[];
+        excelData: ColumnExcelData[];
+    }> => {
         try {
-            setLoading(true);
-            const response = await fetch(filePath);
-            const data = await response.arrayBuffer();
-            const workbook = XLSX.read(new Uint8Array(data), { 
-                type: 'array',
-                cellDates: true,
-                cellNF: false,
-                cellText: true
-            });
-            
-            // Leer la primera hoja (datos principales)
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { 
-                header: 1,
-                raw: false,
-                defval: '',
-                blankrows: false
-            }) as (string | number)[][];
-            
-            // Decodificar cada string en el array
-            const decodedData = jsonData.map(row =>
-                row.map(cell => {
-                    if (typeof cell === 'string') {
-                        try {
-                            const bytes = new Uint8Array([...cell].map(c => c.charCodeAt(0)));
-                            return new TextDecoder('utf-8').decode(bytes);
-                        } catch (e) {
-                            return cell;
-                        }
-                    }
-                    return cell;
-                })
-            );
-            
-            // Procesar datos principales
-            const processedData = processExcelData(decodedData);
-            const updatedData = updateExcelData(processedData);
-            
-            // Leer configuración de la cuarta hoja (si existe)
-            if (workbook.SheetNames.length >= 4) {
-                try {
-                    const configSheetName = workbook.SheetNames[3];
-                    const configSheet = workbook.Sheets[configSheetName];
-                    const configJsonData = XLSX.utils.sheet_to_json(configSheet, { 
-                        header: 1,
-                        raw: false,
-                        defval: '',
-                        blankrows: false
-                    }) as (string | number)[][];
-                    
-                    const columnConfig = processColumnConfig(configJsonData);
-                    updateColumnConfig(columnConfig);
-                } catch (configError) {
-                    console.warn('No se pudo leer la configuración de la cuarta hoja, usando valores por defecto');
-                    // updateColumnConfig({ 
-                    //     black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
-                    //     green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
-                    //     purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
-                    // });
-                }
-            } else {
-                // updateColumnConfig({ 
-                //     black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
-                //     green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
-                //     purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
-                // });
-            }
-            
-            setError(null);
-            return updatedData;
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Error al cargar el archivo Excel';
-            setError(errorMessage);
-            const emptyData: ColumnExcelData[] = [];
-            updateExcelData(emptyData);
-            return emptyData;
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const loadExcelFromFile = async (file: File): Promise<ColumnExcelData[]> => {
-        try {
-            setLoading(true);
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(new Uint8Array(data), { 
                 type: 'array',
@@ -209,11 +133,12 @@ export const useExcelData = () => {
                 cellNF: false,
                 cellText: true
             });
+            const sheetLength = workbook.SheetNames.length;
             
             // Leer la primera hoja (datos principales)
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(sheet, { 
+            const sheetNameExcelData = workbook.SheetNames[0];
+            const sheetExcelData = workbook.Sheets[sheetNameExcelData];
+            const jsonExcelData = XLSX.utils.sheet_to_json(sheetExcelData, { 
                 header: 1,
                 raw: false,
                 defval: '',
@@ -221,7 +146,7 @@ export const useExcelData = () => {
             }) as (string | number)[][];
             
             // Decodificar cada string en el array
-            const decodedData = jsonData.map(row =>
+            const decodedExcelData = jsonExcelData.map(row =>
                 row.map(cell => {
                     if (typeof cell === 'string') {
                         try {
@@ -236,58 +161,65 @@ export const useExcelData = () => {
             );
             
             // Procesar datos principales
-            const processedData = processExcelData(decodedData);
-            const updatedData = updateExcelData(processedData);
-            
+            const processedExcelData = processExcelData(decodedExcelData);
+            const updatedExcelData = updateExcelData(processedExcelData);
+            let updatedColumnConfig: ColumnGroupConfig[] = [];
+
             // Leer configuración de la cuarta hoja (si existe)
-            if (workbook.SheetNames.length >= 4) {
-                try {
-                    const configSheetName = workbook.SheetNames[3];
-                    const configSheet = workbook.Sheets[configSheetName];
-                    const configJsonData = XLSX.utils.sheet_to_json(configSheet, { 
-                        header: 1,
-                        raw: false,
-                        defval: '',
-                        blankrows: false
-                    }) as (string | number)[][];
-                    
-                    const columnConfig = processColumnConfig(configJsonData);
-                    updateColumnConfig(columnConfig);
-                } catch (configError) {
-                    console.warn('No se pudo leer la configuración de la cuarta hoja, usando valores por defecto');
-                    // updateColumnConfig({ 
-                    //     black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
-                    //     green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
-                    //     purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
-                    // });
-                }
-            } else {
-                // updateColumnConfig({ 
-                //     black: { numColumns: 7, rangeColumns: 'F1:L1', color: '#000000ff' },
-                //     green: { numColumns: 8, rangeColumns: 'M1:T1', color: '#92d050ff' },
-                //     purple: { numColumns: 7, rangeColumns: 'U1:AA1', color: '#7030a0ff' }
-                // });
+            if (sheetLength > 1) {
+                const lastSheet = sheetLength - 1;
+                const sheetConfigName = workbook.SheetNames[lastSheet];
+                const sheetConfigData = workbook.Sheets[sheetConfigName];
+                const jsonConfigData = XLSX.utils.sheet_to_json(sheetConfigData, { 
+                    header: 1,
+                    raw: false,
+                    defval: '',
+                    blankrows: false
+                }) as (string | number)[][];
+
+                // Decodificar cada string en el array
+                const decodedConfigData = jsonConfigData.map(row =>
+                    row.map(cell => {
+                        if (typeof cell === 'string') {
+                            try {
+                                const bytes = new Uint8Array([...cell].map(c => c.charCodeAt(0)));
+                                return new TextDecoder('utf-8').decode(bytes);
+                            } catch (e) {
+                                return cell;
+                            }
+                        }
+                        return cell;
+                    })
+                );
+
+                // Procesar datos principales
+                const processedColumnConfig = processColumnConfig(decodedConfigData);
+                updatedColumnConfig = updateColumnConfig(processedColumnConfig);
             }
-            
+
+            // Limpiar cualquier error previo
             setError(null);
-            return updatedData;
+            return {
+                columnConfig: updatedColumnConfig,
+                excelData: updatedExcelData
+            };
         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : 'Error al cargar el archivo Excel';
-            setError(errorMessage);
-            const emptyData: ColumnExcelData[] = [];
-            updateExcelData(emptyData);
-            return emptyData;
-        } finally {
-            setLoading(false);
+            setError(err instanceof Error ? err.message : 'Error al cargar el archivo Excel');
+            const emptyColumnConfigData: ColumnGroupConfig[] = [];
+            const emptyExcelData: ColumnExcelData[] = [];
+            updateColumnConfig(emptyColumnConfigData);
+            updateExcelData(emptyExcelData);
+            return {
+                columnConfig: emptyColumnConfigData,
+                excelData: emptyExcelData
+            };
         }
     };
 
     return {
+        error,
         excelData,
         columnConfig,
-        loading,
-        error,
-        loadExcelFromPath,
         loadExcelFromFile
     };
 };
