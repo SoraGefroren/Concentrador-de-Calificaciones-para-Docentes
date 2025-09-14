@@ -22,7 +22,7 @@ export interface ColumnGroupConfig {
     color: string;      // Color de fondo del grupo de columnas
     label: string;      // Nombre del grupo de columnas
     isNew?: boolean;    // Indica si el grupo es nuevo (no guardado aún)
-    type: 'info' | 'period' | 'columns';   // Tipo de grupo de columnas
+    type: 'info' | 'period' | 'columns' | '';   // Tipo de grupo de columnas
     columns: Array<ColumnExcelConfig>;
 }
 
@@ -56,49 +56,99 @@ export const useExcelData = () => {
         );
     };
 
-    // PENDIENTE: Función para procesar la configuración de la cuarta hoja
+    // Función para procesar la configuración desde la hoja de Excel
     const processColumnConfig = (configData: (string | number)[][]): ColumnGroupConfig[] => {
-        const defaultConfig: ColumnGroupConfig[] = [];
-        
+        // Validar si tenemos datos de configuración
         if (!configData || configData.length === 0) {
-            return defaultConfig;
+            return [];
         }
 
-        const config: ColumnGroupConfig[] = [...defaultConfig];
-
-        configData.forEach(row => {
-            if (row && row.length >= 5) {
-                // Formato: PRIMER.PERIODO|negro|#000000ff|F1:L1|7
-                const [periodo, colorName, hexColor, rangeColumns, numColumns] = row;
-                const columns = parseInt(numColumns?.toString() ?? '0', 10);
-                
-                if (isNaN(columns)) return;
-
-                const colorNameLower = colorName?.toString().toLowerCase();
-                
-                if (periodo?.toString().includes('PRIMER') && colorNameLower === 'negro') {
-                    // config.black = {
-                    //     numColumns: columns,
-                    //     rangeColumns: rangeColumns?.toString() ?? 'F1:L1',
-                    //     color: hexColor?.toString() ?? '#000000ff'
-                    // };
-                } else if (periodo?.toString().includes('SEGUNDO') && colorNameLower === 'verde') {
-                    // config.green = {
-                    //     numColumns: columns,
-                    //     rangeColumns: rangeColumns?.toString() ?? 'M1:T1',
-                    //     color: hexColor?.toString() ?? '#92d050ff'
-                    // };
-                } else if (periodo?.toString().includes('TERCER') && colorNameLower === 'morado') {
-                    // config.purple = {
-                    //     numColumns: columns,
-                    //     rangeColumns: rangeColumns?.toString() ?? 'U1:AA1',
-                    //     color: hexColor?.toString() ?? '#7030a0ff'
-                    // };
+        const aryConfig: ColumnGroupConfig[] = [];
+        let currentGroup: ColumnGroupConfig | null = null;
+        let currentColumn: ColumnExcelConfig | null = null;
+        
+        // Iniciar la lectura de los grupos y columnas
+        let i = 0;
+        while (i < configData.length) {
+            // Leer el inicio de un nuevo grupo: ['Grupo', 'Nombre del Grupo']
+            const rowGroupHeader = configData[i];
+            if (rowGroupHeader[0] === 'Grupo') {
+                // Crear nuevo grupo de columnas
+                currentGroup = {
+                    id: '',
+                    color: '',
+                    label: ((rowGroupHeader.length > 1 ? rowGroupHeader[1] : '') || '').toString(),
+                    type: typeColumnsGroup,
+                    columns: []
+                };
+                // Leer encabezados de configuración de grupo: ['', 'Columnas', 'Color', 'Tipo']
+                i++;
+                if ((i < configData.length)) {
+                    const rowGroupConfig = configData[i];
+                    if (rowGroupConfig[1] === 'Columnas' && rowGroupConfig[2] === 'Color' && rowGroupConfig[3] === 'Tipo') {
+                        // Leer información de encabezados de configuración de grupo: ['', 'A:Z', '#00000', '']
+                        i++;
+                        if ((i < configData.length)) {
+                            const rowColumnGroup = configData[i];
+                            currentGroup.id = rowColumnGroup[1] ? rowColumnGroup[1].toString() : '';
+                            currentGroup.color = rowColumnGroup[2] ? rowColumnGroup[2].toString() : '';
+                            const myTypeGroup = rowColumnGroup[3] ? rowColumnGroup[3].toString() : '';
+                            if (myTypeGroup === typeInfoGroup
+                                || myTypeGroup === typePeriodGroup
+                                || myTypeGroup === typeColumnsGroup) {
+                                currentGroup.type = myTypeGroup;
+                            }
+                            // Iniciar la lectura de las columnas dentro del grupo
+                            i++;
+                            let bDotsFound = false;
+                            while (!bDotsFound && (i < configData.length)) {
+                                // Leer el inicio de una nueva columna: ['Encabezado', 'Nombre de la Columna']
+                                const rowExcelHeader = configData[i];
+                                if (rowExcelHeader[2] === 'Encabezado') {
+                                    // Crear nueva columna de configuración
+                                    currentColumn = {
+                                        id: '',
+                                        date: '',
+                                        points: 0,
+                                        label: ((rowExcelHeader.length > 1 ? rowExcelHeader[3] : '') || '').toString(),
+                                    };
+                                    // Leer encabezados de datos de columna: ['', '', '', 'Columna', 'Fecha', 'Puntos']
+                                    i++;
+                                    if ((i < configData.length)) {
+                                        const rowExcelConfig = configData[i];
+                                        // Detectar encabezados de datos de columna: ['', '', '', 'Columna', 'Fecha', 'Puntos']
+                                        if (rowExcelConfig[3] === 'Columna' && rowExcelConfig[4] === 'Fecha' && rowExcelConfig[5] === 'Puntos') {
+                                            // Leer información de encabezados de datos de columna: ['', '', '', 'G10', '19-ENE-22', '0']
+                                            i++;
+                                            if ((i < configData.length)) {
+                                                const rowColumnExcel = configData[i];
+                                                currentColumn.id = rowColumnExcel[3] ? rowColumnExcel[3].toString() : '';
+                                                currentColumn.date = rowColumnExcel[4] ? rowColumnExcel[4].toString() : '';
+                                                currentColumn.points = parseInt(rowColumnExcel[5] ? rowColumnExcel[5].toString() : '0');
+                                                // Agregar la columna actual al grupo
+                                                currentGroup.columns.push(currentColumn);
+                                            }
+                                        }
+                                    }
+                                }
+                                // Buscar puntos de suspensión: ['...']
+                                i++;
+                                const rowExcelDots = configData[i];
+                                if (rowExcelDots[0] === '...') {
+                                    bDotsFound = true;
+                                }
+                            }
+                            // Agregar el grupo actual al arreglo de configuración
+                            aryConfig.push(currentGroup);
+                        }
+                    }
                 }
             }
-        });
-
-        return config;
+            i++;
+        }
+        
+        // Devolver la configuración procesada
+        return aryConfig;
     };
 
     /*
@@ -126,6 +176,7 @@ export const useExcelData = () => {
         excelData: ColumnExcelData[];
     }> => {
         try {
+            // Leer el archivo como un array buffer
             const data = await file.arrayBuffer();
             const workbook = XLSX.read(new Uint8Array(data), { 
                 type: 'array',

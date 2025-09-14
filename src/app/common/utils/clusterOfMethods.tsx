@@ -109,21 +109,22 @@ export const clearLocalStorage = (): void => {
 export const updatedLocalStorage = async (context: ReturnType<typeof useExcelData> | undefined, event: FileUploadEvent): Promise<boolean> => {
     let processIsOk = true;
     try {
-        clearLocalStorage();
-        const loadExcelFromFile = context?.loadExcelFromFile;
-        const file = (event.files.length > 0) ? event.files[0] : null;
-        // Verificar que el contexto y el archivo estén disponibles
-        if (!file || !context || !loadExcelFromFile) {
-            processIsOk = false;
-        } else {
-          // Cargar los datos del archivo Excel usando el método del contexto
-          await loadExcelFromFile(file);
-          // Guardamos los datos en localStorage (esto ya se hace dentro de loadExcelFromFile)
-          localStorage.setItem('fileRoute', 'true');
-        }
+      clearLocalStorage();
+      const loadExcelFromFile = context?.loadExcelFromFile;
+      const file = (event.files.length > 0) ? event.files[0] : null;
+      // Verificar que el contexto y el archivo estén disponibles
+      if (!file || !context || !loadExcelFromFile) {
+          processIsOk = false;
+      } else {
+        // Cargar los datos del archivo Excel usando el método del contexto
+        await loadExcelFromFile(file);
+        // Guardamos los datos en localStorage (esto ya se hace dentro de loadExcelFromFile)
+        localStorage.setItem('fileRoute', 'true');
+      }
     } catch (error) {
-        console.error('Error al procesar el archivo:', error);
-        processIsOk = false;
+      console.error('Error al procesar el archivo:', error);
+      processIsOk = false;
+      clearLocalStorage();
     }
     return processIsOk;
 };
