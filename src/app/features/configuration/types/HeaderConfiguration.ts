@@ -35,18 +35,21 @@ export interface GroupHeaderTemplate {
   }[];
 }
 
-export const DEFAULT_FIXED_LEFT_HEADERS = [
+export const DEFAULT_FIXED_LEFT_HEADERS_INFO = [
   { name: 'ID', date: '', points: 0 },
   { name: 'NOMBRE', date: '', points: 0 },
   { name: 'APELLIDO', date: '', points: 0 },
   { name: 'CORREO.ELECTONICO ', date: '', points: 0 }
 ];
 
-export const DEFAULT_FIXED_RIGHT_HEADERS = [
+export const DEFAULT_FIXED_RIGHT_HEADERS_COLS = [
   { name: 'SUMA.PORCENTAJE.ACTIVIDADES', date: '', points: 90 },
   { name: 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', date: '', points: 60 },
   { name: 'PARTICIPACIÓN', date: '', points: 10 },
   { name: 'TOTAL.ALCANZADO', date: '', points: 100 },
+];
+
+export const DEFAULT_FIXED_RIGHT_HEADERS_INFO = [
   { name: 'CALIFICACION', date: '', points: 0 }
 ];
 

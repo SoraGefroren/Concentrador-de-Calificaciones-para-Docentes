@@ -2,7 +2,7 @@ import Menu from '../common/Menu.tsx';
 import { useRef, useState } from 'react';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
 import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typeInfoGroup, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
-import { DEFAULT_FIXED_LEFT_HEADERS, DEFAULT_FIXED_RIGHT_HEADERS, DEFAULT_ACTIVITY_TEMPLATES } from '../features/configuration/types/HeaderConfiguration.ts';
+import { DEFAULT_FIXED_LEFT_HEADERS_INFO, DEFAULT_FIXED_RIGHT_HEADERS_COLS, DEFAULT_FIXED_RIGHT_HEADERS_INFO, DEFAULT_ACTIVITY_TEMPLATES } from '../features/configuration/types/HeaderConfiguration.ts';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
@@ -33,33 +33,22 @@ const ConfiguracionHoja = () => {
    * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
    */
   // Calcular automáticamente los rangos de los grupos de columnas
-  const recalculateConfigRanges = (aryColumnConfig: ColumnGroupConfig[], bSetConfig: boolean = true): {
-    aryColumnConfig: ColumnGroupConfig[];
-    newGroupIndex: number;
-    newColIndex: number
-  } => {
+  const recalculateConfigRanges = (aryColumnConfig: ColumnGroupConfig[], bSetConfig: boolean = true): ColumnGroupConfig[] => {
     // Redefinir el ID de los grupos de columnas
-    let currentColumnIndex = 0;
-    let newGroupIndex = -1;
-    let newColIndex = -1;
+    let currentColumnIndex = 1;
+    // Recorrer cada grupo de columnas
     for (let x = 0; x < aryColumnConfig.length; x++) {
+      // Obtener la configuración del grupo actual
       const colsConfig = aryColumnConfig[x];
       const firstColIndex = currentColumnIndex;
       const lastColIndex = currentColumnIndex + (colsConfig.columns.length - 1);
+      // Recorrer cada una de las columnas del grupo
       for (let y = 0; y < colsConfig.columns.length; y++) {
-        if ((newGroupIndex === -1) && (newColIndex === -1) && !aryColumnConfig[x].columns[y].id) {
-          newColIndex = y;
-        }
         // Redefinir el ID de las columnas de los grupos de columnas
         aryColumnConfig[x].columns[y].id = getExcelColumnName(currentColumnIndex);
         currentColumnIndex += 1;
       }
-      if ((newGroupIndex === -1) && (!colsConfig.id || (newColIndex !== -1))) {
-        if (newColIndex === -1) {
-          newColIndex = (colsConfig.columns.length - 1);
-        }
-        newGroupIndex = x;
-      }
+      // Redefinir el ID del grupo de columnas
       aryColumnConfig[x].id = getExcelColumnName(firstColIndex) + ':' + getExcelColumnName(lastColIndex);
     }
     // Valida si debe actualizar la configuración
@@ -68,11 +57,7 @@ const ConfiguracionHoja = () => {
       setConfig(aryColumnConfig ? [...aryColumnConfig] : []);
     }
     // Devuelve los indices de los primeros grupos sin ID
-    return {
-      aryColumnConfig,
-      newGroupIndex,
-      newColIndex
-    };
+    return aryColumnConfig;
   };
   
   // Función para generar configuración por defecto
@@ -88,7 +73,7 @@ const ConfiguracionHoja = () => {
     };
 
     // 1. Columnas Fijas Izquierdas
-    const leftFixedColumns: ColumnExcelConfig[] = DEFAULT_FIXED_LEFT_HEADERS
+    const leftFixedColumns: ColumnExcelConfig[] = DEFAULT_FIXED_LEFT_HEADERS_INFO
       .map((header, index) => ({
         id: '',
         label: header.name,
@@ -123,7 +108,7 @@ const ConfiguracionHoja = () => {
       });
 
     // 3. Columnas Fijas Derechas
-    const rightFixedColumns: ColumnExcelConfig[] = DEFAULT_FIXED_RIGHT_HEADERS
+    const rightFixedColumnsCols: ColumnExcelConfig[] = DEFAULT_FIXED_RIGHT_HEADERS_COLS
       .map((header, index) => ({
         id: '',
         label: header.name,
@@ -135,14 +120,30 @@ const ConfiguracionHoja = () => {
       color: '',
       label: 'Cálculos y Totales',
       type: typeColumnsGroup,
-      columns: rightFixedColumns
+      columns: rightFixedColumnsCols
+    });
+
+    // 3. Columnas Fijas Derechas
+    const rightFixedColumnsInfo: ColumnExcelConfig[] = DEFAULT_FIXED_RIGHT_HEADERS_INFO
+      .map((header, index) => ({
+        id: '',
+        label: header.name,
+        date: header.date || null,
+        points: header.points || null
+      }));
+    aryDefaultConfig.push({
+      id: '',
+      color: '',
+      label: 'Cálculos y Totales',
+      type: typeInfoGroup,
+      columns: rightFixedColumnsInfo
     });
 
     // Calcular automáticamente los rangos de los grupos de columnas
-    const recalculatedRanges = recalculateConfigRanges(aryDefaultConfig, false);
+    const newAryColumnConfig = recalculateConfigRanges(aryDefaultConfig, false);
 
     // Devolver la configuración generada
-    return recalculatedRanges.aryColumnConfig;
+    return newAryColumnConfig;
   };
 
   const updatedColumnGroup = (colGroupConfig: ColumnGroupConfig[]): void => {
@@ -204,23 +205,25 @@ const ConfiguracionHoja = () => {
    */
   const groupPreviewConfiguration = () => {
     const arrayTypeGroupConfig: Array<{
+      color: string;
       position: string;
       name: string;
       date: string | null;
       points: number | null;
       category: string;
-      type: string;
+      detail: string;
     }> = [];
     columnConfig.forEach(groupConfig => {
       // Se recorren las columnas que conforman al grupo
       groupConfig.columns.forEach(excelConfig => {
         arrayTypeGroupConfig.push({
+          color: groupConfig.color,
           position: excelConfig.id,
           name: excelConfig.label,
           date: excelConfig.date,
           points: excelConfig.points,
           category: groupConfig.type,
-          type: groupConfig.type
+          detail: groupConfig.label,
         });
       });
     });
@@ -941,12 +944,23 @@ const ConfiguracionHoja = () => {
                       {groupConfig.columns.map((excelConfig) => (
                         <div 
                           key={`${groupConfig.id}-${excelConfig.id}`}
-                          className="flex gap-2 items-center p-2 rounded bg-gray-50"
+                          className={`flex gap-2 items-center p-2 rounded transition-all duration-500 ${
+                              excelConfig.isNew 
+                                ? 'bg-green-100 border-2 border-green-300 shadow-md' 
+                                : 'bg-gray-50'
+                            }`}
                         >
                           <span className="text-sm text-gray-500 w-8">
                             {excelConfig.id}
                           </span>
                           <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {excelConfig.isNew && (
+                                <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
+                                  ¡NUEVA!
+                                </span>
+                              )}
+                            </div>
                             <InputText
                               value={excelConfig.label}
                               onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
@@ -984,18 +998,46 @@ const ConfiguracionHoja = () => {
                       {groupConfig.columns.map((excelConfig) => (
                           <div 
                             key={`${groupConfig.id}-${excelConfig.id}`}
-                            className="flex gap-2 items-center p-2 rounded bg-gray-50"
+                            className={`flex gap-2 items-center p-2 rounded transition-all duration-500 ${
+                              excelConfig.isNew 
+                                ? 'bg-green-100 border-2 border-green-300 shadow-md' 
+                                : 'bg-gray-50'
+                            }`}
                           >
                             <span className="text-sm text-gray-500 w-8">
                               {excelConfig.id}
                             </span>
                             <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                {groupConfig.type == typeColumnsGroup && (
+                                  <label className="block text-xs text-gray-600">Nombre</label>
+                                )}
+                                {excelConfig.isNew && (
+                                  <span className="px-1.5 py-0.5 text-xs font-semibold text-green-800 bg-green-200 rounded animate-pulse">
+                                    ¡NUEVA!
+                                  </span>
+                                )}
+                              </div>
                               <InputText
                                 value={excelConfig.label}
                                 onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
                                 className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                               />
                             </div>
+                            
+                            {groupConfig.type == typeColumnsGroup && (
+                              <div className="w-20">
+                                <label className="block text-xs text-gray-600 mb-1">Puntos</label>
+                                <InputNumber
+                                  value={excelConfig.points}
+                                  onValueChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: e.value || 0 })}
+                                  className="w-20 text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                  min={0}
+                                  max={100}
+                                />
+                              </div>
+                            )}
+
                             {groupConfig.columns.length > 1 && (
                               <Button
                                 icon="pi pi-trash"
@@ -1020,12 +1062,27 @@ const ConfiguracionHoja = () => {
               <h4 className="font-bold mb-4">Vista Previa de la Estructura</h4>
               <div className="overflow-x-auto">
                 <DataTable value={groupPreviewConfig} className="text-sm">
-                  <Column field="position" header="Posición Excel" style={{ width: '100px' }} />
+                  <Column
+                    field="position"
+                    header="Posición Excel"
+                    style={{ width: '100px', textAlign: 'center' }}
+                    body={(rowData) => (
+                      <div className="flex items-center justify-end gap-2">
+                        <div 
+                          className="w-full h-8 rounded border"
+                          style={{ backgroundColor: rowData.color }}
+                        ></div>
+                        <span className={`px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800`}>
+                          {rowData.position || '-'}
+                        </span>
+                      </div>
+                    )}
+                  />
                   <Column field="name" header="Nombre de Columna" style={{ width: '200px' }} />
                   <Column 
                     field="date" 
                     header="Fecha" 
-                    style={{ width: '120px' }}
+                    style={{ width: '120px', textAlign: 'center' }}
                     body={(rowData) => (
                       <span className="text-xs text-gray-600">
                         {rowData.date || '-'}
@@ -1035,7 +1092,7 @@ const ConfiguracionHoja = () => {
                   <Column 
                     field="points" 
                     header="Puntos" 
-                    style={{ width: '80px' }}
+                    style={{ width: '80px', textAlign: 'right' }}
                     body={(rowData) => (
                       <span className="text-xs text-gray-600">
                         {rowData.points !== undefined ? rowData.points : '-'}
@@ -1045,25 +1102,19 @@ const ConfiguracionHoja = () => {
                   <Column 
                     field="category" 
                     header="Categoría" 
-                    style={{ width: '120px' }}
+                    style={{ width: '120px', textAlign: 'center' }}
                     body={(rowData) => (
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        rowData.type === 'fixed-left' ? 'bg-blue-100 text-blue-800' :
-                        rowData.type === 'fixed-right' ? 'bg-gray-100 text-gray-800' :
-                        'bg-indigo-100 text-indigo-800'
-                      }`}>
-                        {rowData.category}
+                      <span className={`px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800`}>
+                        { (rowData.category || '').toUpperCase() }
                       </span>
                     )}
                   />
                   <Column 
-                    field="type" 
+                    field="detail" 
                     header="Detalle" 
                     body={(rowData) => (
                       <span className="text-xs text-gray-500">
-                        {rowData.type === 'fixed-left' ? 'Fija Izq.' :
-                         rowData.type === 'fixed-right' ? 'Fija Der.' :
-                         rowData.periodName || rowData.type}
+                        {rowData.detail || '-'}
                       </span>
                     )}
                   />
