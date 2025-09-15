@@ -10,6 +10,7 @@ import { useState, useRef, useMemo } from 'react';
 import StudentDetailsModal from '../common/modals/students/StudentDetailsModal.tsx';
 import StudentActionButtons from '../common/modals/students/StudentActionButtons.tsx';
 import { InputText } from 'primereact/inputtext';
+import { formatFieldName } from '../common/utils/clusterOfMethods.tsx';
 
 /**
  * ARQUITECTURA DE DATOS REFACTORIZADA:
@@ -30,15 +31,10 @@ import { InputText } from 'primereact/inputtext';
  * ✅ Mantiene la fila especial de puntos de manera explícita
  */
 
-// Función para formatear los campos de las columnas
-const formatFieldName = (fieldName: string): string => {
-    return fieldName.replace(/[ÁÉÍÓÚÜáéíóúüÑñ]/g, '�');
-}
-
 const AlumnadoCatalogo = () => {
-    const { excelData } = useExcelContext();
     const navigate = useNavigate();
     const toast = useRef<Toast>(null);
+    const { excelData, columnConfig } = useExcelContext();
     const [selectedData, setSelectedData] = useState<ExcelData | null>(null);
     const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);
     const [searchTerm, setSearchTerm] = useState<string>('');

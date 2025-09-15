@@ -8,6 +8,7 @@ import { InputNumber } from 'primereact/inputnumber';
 import { useState, useEffect, useRef } from 'react';
 import { Toast } from 'primereact/toast';
 import type { ExcelData } from '../common/hooks/useExcelData';
+import { formatFieldName } from '../common/utils/clusterOfMethods.tsx';
 
 // Tipo para valores de entrada
 type FormFieldValue = string | number | null | undefined;
@@ -15,11 +16,6 @@ type FormFieldValue = string | number | null | undefined;
 // Campos de las secciones según la lógica del modal
 const firstSectionFields = ['NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
 const thirdSectionFields = ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION'];
-
-// Función para formatear los campos de las columnas
-const formatFieldName = (fieldName: string): string => {
-    return fieldName.replace(/[ÁÉÍÓÚÜáéíóúüÑñ]/g, '�');
-}
 
 // Función para formatear los headers de las columnas (igual que en AlumnadoCatalogo y StudentDetailsModal)
 const formatColumnHeader = (columnName: string): string => {

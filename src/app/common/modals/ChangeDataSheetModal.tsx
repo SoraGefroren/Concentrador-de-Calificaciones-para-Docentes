@@ -11,6 +11,7 @@ import { Toast } from 'primereact/toast';
 import { useRef } from 'react';
 import FileUploadEvent from '../../features/adds/FileUploadEvent';
 import CloseFileModal from './CloseFileModal';
+import { clearLocalStorage, updatedLocalStorage } from '../utils/clusterOfMethods';
 
 interface ChangeDataSheetModalProps {
   visible: boolean;
@@ -20,55 +21,13 @@ interface ChangeDataSheetModalProps {
 const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) => {
   const navigate = useNavigate();
   const toast = useRef<Toast>(null);
+  const context = useExcelContext();
   const [loading, setLoading] = useState(false);
   const [closeFileModalVisible, setCloseFileModalVisible] = useState(false);
-  const { loadExcelFromFile } = useExcelContext();
-
-  const onUpload = async (event: FileUploadEvent) => {
-    try {
-      setLoading(true);
-      const file = event.files[0];
-      const excelData = await loadExcelFromFile(file);
-      
-      // Guardamos los datos en localStorage (reemplazando los anteriores)
-      localStorage.setItem('excelData', JSON.stringify(excelData));
-      localStorage.setItem('fileRoute', 'true');
-      
-      // Mostrar mensaje de éxito
-      toast.current?.show({
-        severity: 'success',
-        summary: 'Archivo cargado',
-        detail: 'Los datos han sido reemplazados exitosamente',
-        life: 3000
-      });
-      
-      // Cerrar modal y navegar al inicio
-      onHide();
-      navigate('/');
-    } catch (error) {
-      console.error('Error al cargar el archivo:', error);
-      toast.current?.show({
-        severity: 'error',
-        summary: 'Error',
-        detail: 'No se pudo cargar el archivo. Verifique que sea un archivo Excel válido.',
-        life: 5000
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCloseFile = () => {
-    onHide(); // Cerrar la modal principal primero
-    setCloseFileModalVisible(true); // Abrir la modal de cerrar archivo
-  };
 
   const handleCreateNew = () => {
-    // Limpiar los datos actuales
-    localStorage.removeItem('fileRoute');
-    localStorage.removeItem('excelData');
-    localStorage.removeItem('columnConfig');
-    
+    // Limpiar cualquier configuración previa
+    clearLocalStorage();
     // Mostrar mensaje informativo
     toast.current?.show({
       severity: 'info',
@@ -76,11 +35,44 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
       detail: 'Los datos han sido eliminados. Ahora puede cargar un nuevo archivo.',
       life: 3000
     });
-    
     // Cerrar modal y navegar a cargar hoja
     onHide();
     // Navegar a la página de crear hoja
     navigate('/crear-hoja');
+  };
+
+  const handleUploadFile = async (event: FileUploadEvent) => {
+    setLoading(true);
+    // Manejar la carga del archivo
+    if (await updatedLocalStorage(context, event)) {
+        // Mostrar mensaje de éxito
+        toast.current?.show({
+          severity: 'success',
+          summary: 'Archivo cargado',
+          detail: 'Los datos han sido reemplazados exitosamente',
+          life: 3000
+        });
+        // Cerrar modal y navegar  a la página de crear hoja
+        onHide();
+        navigate('/');
+    } else {
+      console.error('Error al cargar el archivo:', error);
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'No se pudo cargar el archivo. Verifique que sea un archivo Excel válido.',
+        life: 5000
+      });
+      // Cerrar modal y navegar al inicio de sesión
+      onHide();
+      navigate('/cargar-hoja');
+    }
+    setLoading(false);
+  };
+
+  const handleCloseFile = () => {
+    onHide(); // Cerrar la modal principal primero
+    setCloseFileModalVisible(true); // Abrir la modal de cerrar archivo
   };
 
   const modalFooter = (
@@ -157,7 +149,7 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
                   accept=".xlsx,.xls"
                   maxFileSize={1000000}
                   customUpload
-                  uploadHandler={onUpload}
+                  uploadHandler={handleUploadFile}
                   auto
                   chooseLabel="Reemplazar con nuevo archivo Excel"
                   className="w-full"

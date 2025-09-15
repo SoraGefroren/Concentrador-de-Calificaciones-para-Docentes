@@ -128,3 +128,8 @@ export const updatedLocalStorage = async (context: ReturnType<typeof useExcelDat
     }
     return processIsOk;
 };
+
+// Función para formatear los campos de las columnas
+export const formatFieldName = (fieldName: string): string => {
+    return fieldName.replace(/[ÁÉÍÓÚÜáéíóúüÑñ]/g, '�');
+}
