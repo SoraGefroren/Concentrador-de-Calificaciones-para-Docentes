@@ -13,7 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
-import { getDefaultColumnConfig, getExcelColumnName } from '../common/utils/clusterOfMethods.tsx';
+import { getDefaultColumnConfig, getExcelColumnName, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
 import * as XLSX from 'xlsx';
 
 const ConfiguracionHoja = () => {
@@ -96,31 +96,8 @@ const ConfiguracionHoja = () => {
    * FUNCIONES DE APOYO A LA VISUALIZACIÓN
    */
   const groupSectionConfiguration = () => {
-    const result: {
-      left: ColumnGroupConfig[];
-      center: ColumnGroupConfig[];
-      right: ColumnGroupConfig[];
-    } = {
-      left: [],
-      center: [],
-      right: []
-    };
-    
-    let foundNonPeriod = false;
-    
-    columnConfig.forEach(groupConfig => {
-      if (groupConfig.type !== typePeriodGroup) {
-        if (!foundNonPeriod) {
-          result.left.push(groupConfig);
-        } else {
-          result.right.push(groupConfig);
-        }
-      } else {
-        foundNonPeriod = true;
-        result.center.push(groupConfig);
-      }
-    });
-    
+    // Tomar la configuración de secciones izquierda, centro y derecha
+    const result = getSectionsColumnsConfig(columnConfig);
     return result;
   };
   

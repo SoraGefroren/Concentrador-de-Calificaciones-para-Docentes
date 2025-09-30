@@ -10,7 +10,7 @@ import { useState, useRef, useMemo } from 'react';
 import StudentDetailsModal from '../common/modals/students/StudentDetailsModal.tsx';
 import StudentActionButtons from '../common/modals/students/StudentActionButtons.tsx';
 import { InputText } from 'primereact/inputtext';
-import { formatFieldName } from '../common/utils/clusterOfMethods.tsx';
+import { formatFieldName, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
 
 /**
  * ARQUITECTURA DE DATOS REFACTORIZADA:
@@ -20,9 +20,9 @@ import { formatFieldName } from '../common/utils/clusterOfMethods.tsx';
  * - excelData[1] = pointsExcelData   (puntos de cada actividad)
  * - excelData[2...n] = studentsExcelData (datos de estudiantes)
  * 
- * tableData (usado en DataTable):
- * - tableData[0] = pointsExcelData   (fila especial - rowIndex === 0)
- * - tableData[1...n] = studentsExcelData (estudiantes - rowIndex > 0)
+ * tableDataExcelData (usado en DataTable):
+ * - tableDataExcelData[0] = pointsExcelData   (fila especial - rowIndex === 0)
+ * - tableDataExcelData[1...n] = studentsExcelData (estudiantes - rowIndex > 0)
  * 
  * Beneficios de esta estructura:
  * ✅ Separación clara de responsabilidades
@@ -34,7 +34,7 @@ import { formatFieldName } from '../common/utils/clusterOfMethods.tsx';
 const AlumnadoCatalogo = () => {
     const navigate = useNavigate();
     const toast = useRef<Toast>(null);
-    const { excelData, columnConfig } = useExcelContext();
+    const {excelData, columnConfig} = useExcelContext();
     const [selectedData, setSelectedData] = useState<ExcelData | null>(null);
     const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);
     const [searchTerm, setSearchTerm] = useState<string>('');
@@ -44,12 +44,15 @@ const AlumnadoCatalogo = () => {
     const pointsExcelData = [...excelData].slice(1, 2)[0];
     const studentsExcelData = [...excelData].slice(2, excelData.length);
 
+    // Tomar la configuración de secciones izquierda, centro y derecha
+    const groupSectionConfig = getSectionsColumnsConfig(columnConfig);
+    
     // Filtrar studentsExcelData basado en el término de búsqueda
     const filteredStudentsExcelData = useMemo(() => {
         if (!searchTerm.trim()) {
             return studentsExcelData;
         }
-        
+        // Filtrar estudiantes que coincidan con el término de búsqueda en cualquier campo
         return studentsExcelData.filter((student) => {
             // Buscar en todos los campos del estudiante
             return Object.values(student).some((value) => {
@@ -62,74 +65,22 @@ const AlumnadoCatalogo = () => {
 
     // Crear dataset específico para el DataTable con fila de puntos + estudiantes filtrados
     // Se reactualiza automáticamente cuando cambian los datos de estudiantes o el término de búsqueda
-    const tableData = useMemo(() => {
+    const tableDataExcelData = useMemo(() => {
         // Concatenar puntos (fila especial) + estudiantes filtrados
         // Esto mantiene la fila especial pero de manera más explícita
-        // tableData[0] = pointsExcelData (fila especial)
-        // tableData[1...n] = filteredStudentsExcelData (estudiantes filtrados)
+        // tableDataExcelData[0] = pointsExcelData (fila especial)
+        // tableDataExcelData[1...n] = filteredStudentsExcelData (estudiantes filtrados)
         return [pointsExcelData, ...filteredStudentsExcelData].filter(Boolean);
     }, [pointsExcelData, filteredStudentsExcelData]);
 
-    // Función para formatear los headers de las columnas
-    const formatColumnHeader = (columnName: string): string => {
-        // Casos especiales para ciertos campos
-        const specialCases: { [key: string]: string } = {
-            'ID': 'ID',
-            'CORREO.ELECTONICO ': 'Correo Electrónico',
-            'CORREO.ELECTONICO': 'Correo Electrónico',
-            'SUMA.PORCENTAJE.ACTIVIDADES': 'Suma % Actividades',
-            'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES': 'Total Alcanzado % Actividades',
-            'PARTICIPACIÓN': 'Participación',
-            'TOTAL.ALCANZADO': 'Total Alcanzado',
-            'CALIFICACION': 'Calificación'
-        };
-
-        // Si hay un caso especial definido, usarlo
-        if (specialCases[columnName]) {
-            return specialCases[columnName];
-        }
-
-        // Detectar y formatear fechas al final del texto
-        // Patrón: texto-dd-mmm-yy (ejemplo: "Conceptos Basicos Probabilidad-05-nov-21")
-        const datePattern = /^(.+)-(\d{1,2})-([a-z]{3})-(\d{2})$/i;
-        const dateMatch = columnName.match(datePattern);
-        
-        if (dateMatch) {
-            const [, textPart, day, month, year] = dateMatch;
-            // Formatear la parte del texto (reemplazar puntos por espacios y capitalizar)
-            const formattedText = textPart
-                .split('.')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                .join(' ');
-            
-            // Formatear la fecha: dd/mmm/yy
-            const formattedDate = `${day}/${month}/${year}`;
-            
-            return `${formattedText.replace('-', ' ').replace('-', ' ').replace('  ', ' ')} ${formattedDate}`;
-        }
-
-        // Formateo general para otros casos
-        return columnName
-            .split('.') // Dividir por puntos
-            .map(word => word.toLowerCase()) // Convertir a minúsculas
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalizar primera letra
-            .join(' ')
-            .replace('-', ' ')
-            .replace('-', ' ')
-            .replace('  ', ' '); // Unir con espacios
-    };
-
     // Lista de columnas que queremos mostrar
     const columnsToShow = [
-        'ID',
-        'NOMBRE',
-        'APELLIDO',
-        'CORREO.ELECTONICO ',
-        'SUMA.PORCENTAJE.ACTIVIDADES',
-        'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES',
-        'PARTICIPACIÓN',
-        'TOTAL.ALCANZADO',
-        'CALIFICACION'
+        ...groupSectionConfig.left.flatMap((groupConfig) => 
+            groupConfig.columns.map((excelConfig) => excelConfig.label)
+        ),
+        ...groupSectionConfig.right.flatMap((groupConfig) => 
+            groupConfig.columns.map((excelConfig) => excelConfig.label)
+        )
     ];
 
     // Función para copiar texto al portapapeles
@@ -185,27 +136,25 @@ const AlumnadoCatalogo = () => {
 
     // Template para filas de estudiantes (rowIndex > 0)
     const renderStudentRowTemplate = (rowData: ExcelData, excelColumn: string, rowIndex: number) => {
-        if (['ID'].includes(excelColumn)) {
+        if (columnsToShow[0] == excelColumn) {
             return columnContentValueIDTemplate(rowData, { field: excelColumn, rowIndex });
-        } else if (['CORREO.ELECTONICO', 'CORREO.ELECTONICO ', '"CORREO.ELECTONICO "'].includes(excelColumn)) {
+        } else if (excelColumn.match(/^(.+)@(.+)$/)) {
             return columnContentValueMailTemplate(rowData, { field: excelColumn, rowIndex });
-        } else if (['NOMBRE', 'APELLIDO'].includes(excelColumn)) {
+        } else if (rowData[excelColumn] && !isNaN(Number(rowData[excelColumn]))) {
+            return <div className="w-full text-right">
+                        { 
+                            new Intl.NumberFormat('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                            }).format(
+                                parseFloat((rowData[excelColumn] || '0') + '')
+                            )
+                        }
+                    </div>
+        } else {
             return  <div className="w-full text-left font-semibold">
                         { rowData[excelColumn] || '' }
                     </div>;
-        } else {
-            return  !['BUSQUEDA'].includes(excelColumn)
-                        ?   <div className="w-full text-right">
-                                { 
-                                    new Intl.NumberFormat('en-US', {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                    }).format(
-                                        parseFloat((rowData[excelColumn] || '0') + '')
-                                    )
-                                }
-                            </div>
-                        :   null;
         }
     };
     
@@ -386,15 +335,15 @@ const AlumnadoCatalogo = () => {
                     <DataTable 
                         scrollable
                         rowClassName={getRowClassName}
-                        value={tableData}
+                        value={tableDataExcelData}
                         tableStyle={{ minWidth: '100%', maxWidth: '100%' }}
                         className="custom-table"
                     >
                         {excelData.length > 0 &&
                             columnsToShow.map((col, index) => (
-                                <Column key={`${col}-${index}`}
-                                        field={col} 
-                                        header={formatColumnHeader(col)}
+                                <Column field={col} 
+                                        header={col}
+                                        key={`${col}-${index}`}
                                         body={chooseBodyTemplate(col)} />
                             ))
                         }

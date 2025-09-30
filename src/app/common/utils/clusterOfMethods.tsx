@@ -133,3 +133,39 @@ export const updatedLocalStorage = async (context: ReturnType<typeof useExcelDat
 export const formatFieldName = (fieldName: string): string => {
     return fieldName.replace(/[ÁÉÍÓÚÜáéíóúüÑñ]/g, '�');
 }
+
+// Función para obtener las secciones (izquierda, centro, derecha)
+export const getSectionsColumnsConfig = (columnConfig: ColumnGroupConfig[]): {
+    left: ColumnGroupConfig[];
+    center: ColumnGroupConfig[];
+    right: ColumnGroupConfig[];
+  } => {
+  // Inicializar resultado con secciones vacías
+  const result: {
+    left: ColumnGroupConfig[];
+    center: ColumnGroupConfig[];
+    right: ColumnGroupConfig[];
+  } = {
+    left: [],
+    center: [],
+    right: []
+  };
+  // Variable para rastrear si ya se encontró un grupo de tipo período
+  let foundNonPeriod = false;
+  // Recorrer la configuración de columnas y distribuir en secciones
+  columnConfig.forEach(groupConfig => {
+    if (groupConfig.type !== typePeriodGroup) {
+      if (!foundNonPeriod) {
+        result.left.push(groupConfig);
+      } else {
+        result.right.push(groupConfig);
+      }
+    } else {
+      foundNonPeriod = true;
+      result.center.push(groupConfig);
+    }
+  });
+  // Devolver el resultado con las tres secciones
+  return result;
+};
+  
