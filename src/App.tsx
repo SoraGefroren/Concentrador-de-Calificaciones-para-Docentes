@@ -26,15 +26,15 @@ function App() {
           element={<ValidateAccessToRoute element={<AlumnadoCatalogo />} />}
         />
         <Route
+          path="/alumno/nuevo"
+          element={<ValidateAccessToRoute element={<AlumnadoFormulario />} />}
+        />
+        <Route
           path="/alumno/:id"
           element={<ValidateAccessToRoute element={<AlumnadoFormulario />} />}
         />
         <Route
           path="/alumno/:id/:mode"
-          element={<ValidateAccessToRoute element={<AlumnadoFormulario />} />}
-        />
-        <Route
-          path="/alumno/nuevo"
           element={<ValidateAccessToRoute element={<AlumnadoFormulario />} />}
         />
         <Route

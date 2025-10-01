@@ -7,100 +7,94 @@ import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { useState, useEffect, useRef } from 'react';
 import { Toast } from 'primereact/toast';
-import type { ExcelData } from '../common/hooks/useExcelData';
-import { formatFieldName } from '../common/utils/clusterOfMethods.tsx';
+import type { ColumnExcelData, ColumnGroupConfig } from '../common/hooks/useExcelData';
+import { formatFieldName, formatColumnHeader, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
 
 // Tipo para valores de entrada
 type FormFieldValue = string | number | null | undefined;
-
-// Campos de las secciones según la lógica del modal
-const firstSectionFields = ['NOMBRE', 'APELLIDO', 'CORREO.ELECTONICO '];
-const thirdSectionFields = ['SUMA.PORCENTAJE.ACTIVIDADES', 'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES', 'PARTICIPACIÓN', 'TOTAL.ALCANZADO', 'CALIFICACION'];
-
-// Función para formatear los headers de las columnas (igual que en AlumnadoCatalogo y StudentDetailsModal)
-const formatColumnHeader = (columnName: string): string => {
-    // Casos especiales para ciertos campos
-    const specialCases: { [key: string]: string } = {
-        'ID': 'ID',
-        'CORREO.ELECTONICO ': 'Correo Electrónico',
-        'CORREO.ELECTONICO': 'Correo Electrónico',
-        'SUMA.PORCENTAJE.ACTIVIDADES': 'Suma % Actividades',
-        'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES': 'Total Alcanzado % Actividades',
-        'PARTICIPACIÓN': 'Participación',
-        'TOTAL.ALCANZADO': 'Total Alcanzado',
-        'CALIFICACION': 'Calificación'
-    };
-
-    // Si hay un caso especial definido, usarlo
-    if (specialCases[columnName]) {
-        return specialCases[columnName];
-    }
-
-    // Detectar y formatear fechas al final del texto
-    // Patrón: texto-dd-mmm-yy (ejemplo: "Conceptos Basicos Probabilidad-05-nov-21")
-    const datePattern = /^(.+)-(\d{1,2})-([a-z]{3})-(\d{2})$/i;
-    const dateMatch = columnName.match(datePattern);
-    
-    if (dateMatch) {
-        const [, textPart, day, month, year] = dateMatch;
-        // Formatear la parte del texto (reemplazar puntos por espacios y capitalizar)
-        const formattedText = textPart
-            .split('.')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(' ');
-        
-        // Formatear la fecha: dd/mmm/yy
-        const formattedDate = `${day}/${month}/${year}`;
-        
-        return `${formattedText.replace('-', ' ').replace('-', ' ').replace('  ', ' ')} ${formattedDate}`;
-    }
-
-    // Formateo general para otros casos
-    return columnName
-        .split('.') // Dividir por puntos
-        .map(word => word.toLowerCase()) // Convertir a minúsculas
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1)) // Capitalizar primera letra
-        .join(' ')
-        .replace('-', ' ')
-        .replace('-', ' ')
-        .replace('  ', ' '); // Unir con espacios
-};
 
 // Tipos de modo para el formulario
 type FormMode = 'view' | 'edit' | 'register';
 
 const AlumnadoFormulario = () => {
-    const { excelData, columnConfig } = useExcelContext();
-    const { id, mode } = useParams<{ id?: string; mode?: string }>();
     const navigate = useNavigate();
     const toast = useRef<Toast>(null);
+    const { excelData, columnConfig } = useExcelContext();
+    const { id, mode } = useParams<{ id?: string; mode?: string }>();
     
     // Determinar el modo del formulario
     const formMode: FormMode = (() => {
-        if (id === 'nuevo') return 'register';
-        if (mode === 'vista') return 'view';
+        // Si la URL es /alumno/nuevo, es registro
+        if (window.location.pathname === '/alumno/nuevo' || id === 'nuevo') {
+            return 'register';
+        }
+        // Si tiene parámetro mode=vista, es vista
+        if (mode === 'vista') {
+            return 'view';
+        }
+        // Si tiene ID pero no mode, es edición
+        if (id && id !== 'nuevo') {
+            return 'edit';
+        }
+        // Por defecto, edición
         return 'edit';
     })();
+
+    // Tomar la configuración de secciones izquierda, centro y derecha
+    const groupSectionConfig = getSectionsColumnsConfig(columnConfig);
+    
+    // Campos de las secciones según la lógica del modal
+    const firstSectionFields = [
+        ...groupSectionConfig.left.flatMap((groupConfig) => 
+            groupConfig.columns.map((excelConfig) => excelConfig.label)
+        )
+    ];
+    const secondSectionFields = [
+        ...groupSectionConfig.center.flatMap((groupConfig) => 
+            groupConfig.columns.map((excelConfig) => excelConfig.label)
+        )
+    ];
+    const thirdSectionFields = [
+        ...groupSectionConfig.right.flatMap((groupConfig) => 
+            groupConfig.columns.map((excelConfig) => excelConfig.label)
+        )
+    ];
+
+    // La primera columna es siempre el ID
+    const idColumnName = firstSectionFields.pop();
     
     // Encontrar los datos del alumno seleccionado (solo si no es modo registro)
     const alumnoData = formMode === 'register' 
         ? null 
-        : excelData.find((row) => row['ID']?.toString() === id);
+        : excelData.find((row: ColumnExcelData) => row[idColumnName]?.toString() === id);
     
     // Estado para los datos editables
-    const [formData, setFormData] = useState<ExcelData>(() => {
+    const [formData, setFormData] = useState<ColumnExcelData>(() => {
+        // Si es registro, inicializar con datos vacíos pero con un ID temporal
         if (formMode === 'register') {
-            // Para registro, inicializar con datos vacíos pero con un ID temporal
-            const newId = Math.max(...excelData.map(row => parseInt(row['ID']?.toString() || '0', 10))) + 1;
-            return { ID: newId.toString() };
+            // Inicalizar un nuevo objeto para los datos del formulario
+            const newExcelData: ColumnExcelData = {};
+            // Asignar un ID temporal para el nuevo alumno
+            newExcelData[idColumnName] = Math.max(...excelData.map((row: ColumnExcelData) => parseInt(row[idColumnName]?.toString() || '0', 10))) + 1;
+            // Compone el resto de campos con valores vacíos
+            for (const field of firstSectionFields) {
+                newExcelData[field] = '';
+            }
+            for (const field of secondSectionFields) {
+                newExcelData[field] = '';
+            }
+            for (const field of thirdSectionFields) {
+                newExcelData[field] = '';
+            }
+            // Asignar el resto de campos con valores vacíos
+            return newExcelData;
         }
+        // Devolver los datos del alumno encontrado o un objeto vacío si no existe
         return alumnoData || {};
     });
     
-    const datesData = [...excelData].slice(0, 1)[0];
-    const formDates = datesData || {};
-    const pointsData = [...excelData].slice(1, 2)[0];
-    const formPoints = pointsData || {};
+    const formDates = [...excelData].slice(0, 1)[0] || {};
+    const formPoints = [...excelData].slice(1, 2)[0] || {};
 
     useEffect(() => {
         if (alumnoData && formMode !== 'register') {
@@ -122,42 +116,8 @@ const AlumnadoFormulario = () => {
         );
     }
 
-    // Función para obtener las columnas por grupo de color
-    const getColumnsByGroup = (group: 'black' | 'green' | 'purple', myFormData: ExcelData) => {
-        const blackColumns = columnConfig.black.numColumns;
-        const greenColumns = columnConfig.green.numColumns;
-        
-        let start = 0;
-        let end = 0;
-        switch (group) {
-            case 'black':
-                end = blackColumns - 1;
-                break;
-            case 'green':
-                start = blackColumns;
-                end = blackColumns + greenColumns - 1;
-                break;
-            case 'purple':
-                start = blackColumns + greenColumns;
-                end = blackColumns + greenColumns + columnConfig.purple.numColumns - 1;
-                break;
-        }
-
-        // Filtrar todas las columnas excluyendo las de las secciones primera y tercera
-        const allMiddleColumns = Object.entries(myFormData)
-            .filter(([key]) => !firstSectionFields.includes(key) && 
-                              !thirdSectionFields.includes(key) && 
-                              key !== 'BUSQUEDA' &&
-                              key !== 'ID2' &&
-                              key !== 'ID' &&
-                              key !== 'Column 33');
-
-        // Obtener las columnas del rango específico para este grupo
-        return allMiddleColumns.slice(start, end + 1);
-    };
-
     const handleInputChange = (field: string, value: FormFieldValue) => {
-        setFormData(prev => ({
+        setFormData((prev: ColumnExcelData) => ({
             ...prev,
             [field]: value ?? ''
         }));
@@ -273,13 +233,30 @@ const AlumnadoFormulario = () => {
         );
     };
 
-    const renderColorGroup = (group: 'black' | 'green' | 'purple', title: string, bgColor: string) => {
-        const columns = getColumnsByGroup(group, formData);
-        const columnsDates = getColumnsByGroup(group, formDates);
-        const columnsPoints = getColumnsByGroup(group, formPoints);
-        
-        if (columns.length === 0) return null;
-
+    const renderColorGroup = (groupConfig: ColumnGroupConfig) => {
+        // Lista de columnas que queremos mostrar
+        const groupCenterColumns = [
+            ...groupConfig.columns.map((excelConfig) => excelConfig.label).flatMap((label) => label)
+        ];
+        // Función para obtener las columnas por grupo de color
+        const getColumnsByGroup = (myGroupColumns: string[], myFormExcelData: ColumnExcelData) => {
+            // Filtrar todas las columnas excluyendo las de las secciones primera y tercera
+            const allMiddleColumns =
+                Object.entries(myFormExcelData)
+                .filter(([key]) => myGroupColumns.includes(key));
+            // Obtener las columnas del rango específico para este grupo
+            return allMiddleColumns;
+        };
+        // Obtener columnas específicas del grupo
+        const { label: title, color: bgColor } = groupConfig;
+        const columnsExcel = getColumnsByGroup(groupCenterColumns, formData);
+        const columnsDates = getColumnsByGroup(groupCenterColumns, formDates);
+        const columnsPoints = getColumnsByGroup(groupCenterColumns, formPoints);
+        // Validar si hay columnas para mostrar
+        if (columnsExcel.length === 0) {
+            return null;
+        }
+        // Renderizar el grupo de color
         return (
             <Card className="mb-6">
                 <div 
@@ -289,18 +266,18 @@ const AlumnadoFormulario = () => {
                     {title}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {columns.map(([key, value], idx) => (
+                    {columnsExcel.map(([key, value], idx) => (
                         <div key={key} className="mb-4">
                             <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
                                 {formatColumnHeader(key)}
                             </label>
-                            {renderEditableInput(key, value,
+                            {renderEditableInput(key, value as FormFieldValue,
                                     (((columnsDates.length > idx) && (columnsDates[idx].length > 1))
-                                        ? (columnsDates[idx][1] || '')
+                                        ? (columnsDates[idx][1] as FormFieldValue || '')
                                         : ''
                                     ),
                                     (((columnsPoints.length > idx) && (columnsPoints[idx].length > 1))
-                                        ? (columnsPoints[idx][1] || '')
+                                        ? (columnsPoints[idx][1] as FormFieldValue || '')
                                         : ''
                                     )
                                 )}
@@ -411,9 +388,11 @@ const AlumnadoFormulario = () => {
                 {/* Segunda sección - Grupos por colores (Negro, Verde, Morado) */}
                 <div className="mb-6">
                     <h3 className="text-xl font-semibold mb-4 text-blue-700">Calificaciones por Período</h3>
-                    {renderColorGroup('black', 'Primer Período (Negro)', '#374151')}
-                    {renderColorGroup('green', 'Segundo Período (Verde)', '#059669')}
-                    {renderColorGroup('purple', 'Tercer Período (Morado)', '#7c3aed')}
+                    <div className="grid grid-cols-1 gap-6">
+                        {groupSectionConfig.center.map((groupConfig) => {
+                            return renderColorGroup(groupConfig)
+                        })}
+                    </div>
                 </div>
 
                 {/* Tercera sección - Resultados (solo lectura) */}
