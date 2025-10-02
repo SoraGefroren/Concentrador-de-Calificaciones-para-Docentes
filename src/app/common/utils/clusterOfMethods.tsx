@@ -21,7 +21,8 @@ export const getDefaultColumnConfig = (): ColumnGroupConfig[] => {
         id: '',
         label: header.name,
         date: header.date || null,
-        points: header.points || null
+        points: header.points || null,
+        isEditable: header.editable || false  // Las columnas de información generalmente no son editables
       }));
     aryDefaultConfig.push({
       id: '',
@@ -39,7 +40,8 @@ export const getDefaultColumnConfig = (): ColumnGroupConfig[] => {
             id: '',
             label: activity.name,
             date: activity.date || null,
-            points: activity.points || null
+            points: activity.points || null,
+            isEditable: activity.editable || false  // Las columnas de actividades son editables por defecto
           }));
         aryDefaultConfig.push({
           id: '',
@@ -56,7 +58,8 @@ export const getDefaultColumnConfig = (): ColumnGroupConfig[] => {
         id: '',
         label: header.name,
         date: header.date || null,
-        points: header.points || null
+        points: header.points || null,
+        isEditable: header.editable || false
       }));
     aryDefaultConfig.push({
       id: '',
@@ -72,7 +75,8 @@ export const getDefaultColumnConfig = (): ColumnGroupConfig[] => {
         id: '',
         label: header.name,
         date: header.date || null,
-        points: header.points || null
+        points: header.points || null,
+        isEditable: header.editable || false
       }));
     aryDefaultConfig.push({
       id: '',

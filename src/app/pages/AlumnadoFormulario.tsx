@@ -61,7 +61,7 @@ const AlumnadoFormulario = () => {
     ];
 
     // La primera columna es siempre el ID
-    const idColumnName = firstSectionFields.pop();
+    const idColumnName = firstSectionFields.shift();
     
     // Encontrar los datos del alumno seleccionado (solo si no es modo registro)
     const alumnoData = formMode === 'register' 
@@ -69,7 +69,7 @@ const AlumnadoFormulario = () => {
         : excelData.find((row: ColumnExcelData) => row[idColumnName]?.toString() === id);
     
     // Estado para los datos editables
-    const [formData, setFormData] = useState<ColumnExcelData>(() => {
+    const [formDatas, setFormDatas] = useState<ColumnExcelData>(() => {
         // Si es registro, inicializar con datos vacíos pero con un ID temporal
         if (formMode === 'register') {
             // Inicalizar un nuevo objeto para los datos del formulario
@@ -92,16 +92,17 @@ const AlumnadoFormulario = () => {
         // Devolver los datos del alumno encontrado o un objeto vacío si no existe
         return alumnoData || {};
     });
-    
-    const formDates = [...excelData].slice(0, 1)[0] || {};
-    const formPoints = [...excelData].slice(1, 2)[0] || {};
 
     useEffect(() => {
         if (alumnoData && formMode !== 'register') {
-            setFormData(alumnoData);
+            setFormDatas(alumnoData);
         }
     }, [alumnoData, formMode]);
-
+    
+    const formDates = [...excelData].slice(0, 1)[0] || {};
+    const formPoints = [...excelData].slice(1, 2)[0] || {};
+    
+    // Menu de error si no se encuentra el alumno
     if (!alumnoData && formMode !== 'register') {
         return (
             <Menu>
@@ -117,7 +118,7 @@ const AlumnadoFormulario = () => {
     }
 
     const handleInputChange = (field: string, value: FormFieldValue) => {
-        setFormData((prev: ColumnExcelData) => ({
+        setFormDatas((prev: ColumnExcelData) => ({
             ...prev,
             [field]: value ?? ''
         }));
@@ -249,7 +250,7 @@ const AlumnadoFormulario = () => {
         };
         // Obtener columnas específicas del grupo
         const { label: title, color: bgColor } = groupConfig;
-        const columnsExcel = getColumnsByGroup(groupCenterColumns, formData);
+        const columnsExcel = getColumnsByGroup(groupCenterColumns, formDatas);
         const columnsDates = getColumnsByGroup(groupCenterColumns, formDates);
         const columnsPoints = getColumnsByGroup(groupCenterColumns, formPoints);
         // Validar si hay columnas para mostrar
@@ -292,9 +293,9 @@ const AlumnadoFormulario = () => {
     const getPageTitle = () => {
         switch (formMode) {
             case 'view':
-                return `Detalle del Alumno - ${formData['ID']}`;
+                return `Detalle del Alumno - ${formDatas[idColumnName]}`;
             case 'edit':
-                return `Editar Alumno - ${formData['ID']}`;
+                return `Editar Alumno - ${formDatas[idColumnName]}`;
             case 'register':
                 return 'Registrar Nuevo Alumno';
             default:
@@ -311,7 +312,7 @@ const AlumnadoFormulario = () => {
                         <Button 
                             label="Editar Alumno"
                             icon="pi pi-file-edit"
-                            onClick={() => navigate(`/alumno/${formData['ID']}`)}
+                            onClick={() => navigate(`/alumno/${formDatas[idColumnName]}`)}
                             className="p-button-primary text-white bg-blue-500 hover:bg-blue-800 p-2"
                         />
                         <Button 
@@ -366,10 +367,10 @@ const AlumnadoFormulario = () => {
             navBarTitle={getPageTitle()}>
             <Toast ref={toast} />
             <div className="p-4 max-w-7xl w-full">
+                {/* Botones principales */}
                 <div className="flex justify-end items-center mb-6">
                     {renderActionButtons()}
                 </div>
-
                 {/* Primera sección - Datos básicos editables */}
                 <Card className="mb-6">
                     <h3 className="text-xl font-semibold mb-4 text-blue-700">Información Personal</h3>
@@ -379,7 +380,7 @@ const AlumnadoFormulario = () => {
                                 <label className="block text-gray-700 text-sm font-bold mb-2 min-h-[40px]">
                                     {formatColumnHeader(field)}
                                 </label>
-                                {renderEditableInput(field, formData[field], null, null)}
+                                {renderEditableInput(field, formDatas[field], null, null)}
                             </div>
                         ))}
                     </div>
@@ -406,7 +407,7 @@ const AlumnadoFormulario = () => {
                                     {formPoints && (formPoints[field] || formPoints[formatFieldName(field)]) ? ` / ${(formPoints[field] || formPoints[formatFieldName(field)])}` : ''}
                                 </label>
                                 {renderReadOnlyField(field,
-                                    (formData[field] || formData[formatFieldName(field)]),
+                                    (formDatas[field] || formDatas[formatFieldName(field)]),
                                     (formDates[field] || formDates[formatFieldName(field)]),
                                     (formPoints[field] || formPoints[formatFieldName(field)])
                                 )}

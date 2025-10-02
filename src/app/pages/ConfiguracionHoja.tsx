@@ -8,6 +8,7 @@ import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { ColorPicker } from 'primereact/colorpicker';
+import { Checkbox } from 'primereact/checkbox';
 import { DataTable } from 'primereact/datatable';
 import { useNavigate } from 'react-router-dom';
 import { Column } from 'primereact/column';
@@ -113,6 +114,7 @@ const ConfiguracionHoja = () => {
       name: string;
       date: string | null;
       points: number | null;
+      editable: boolean | null;
       category: string;
       detail: string;
     }> = [];
@@ -120,11 +122,12 @@ const ConfiguracionHoja = () => {
       // Se recorren las columnas que conforman al grupo
       groupConfig.columns.forEach(excelConfig => {
         arrayTypeGroupConfig.push({
-          color: groupConfig.color,
+          color: groupConfig.color || '',
           position: excelConfig.id,
-          name: excelConfig.label,
-          date: excelConfig.date,
+          name: excelConfig.label || '',
+          date: excelConfig.date || '',
           points: excelConfig.points,
+          editable: excelConfig.isEditable || false,
           category: groupConfig.type,
           detail: groupConfig.label,
         });
@@ -150,7 +153,8 @@ const ConfiguracionHoja = () => {
         id: ``,
         label: `Actividad`,
         date: null,
-        points: null
+        points: null,
+        isEditable: true
       }],
       isNew: true
     };
@@ -256,6 +260,7 @@ const ConfiguracionHoja = () => {
         : `Columna`,
       date: null,
       points: null,
+      isEditable: true,
       isNew: true
     };
     columnConfig[groupIndex].columns.push(newColumn);
@@ -307,7 +312,7 @@ const ConfiguracionHoja = () => {
   };
 
   // Función para actualizar una columna específica
-  const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number }) => {    
+  const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number; isEditable?: boolean }) => {    
       const updatedConfig = columnConfig.map(group => {
         if (group.id === groupId) {
           const updatedColumns = group.columns.map(column =>
@@ -439,14 +444,15 @@ const ConfiguracionHoja = () => {
               '', '', 'Encabezado', excelConfig.label
             ]);
             matrixConfigData.push([
-              '', '', '', 'Columna', 'Fecha', 'Puntos'
+              '', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable'
             ]);
             matrixConfigData.push([
               '', '', '', excelConfig.id,
               (excelConfig.date || ''),
               ((excelConfig.points == 0 || excelConfig.points)
                   ? excelConfig.points
-                  : '')
+                  : ''),
+              (excelConfig.isEditable !== undefined ? (excelConfig.isEditable ? 'SI' : 'NO') : 'SI')
             ]);
           });
           // Se inserta marca para el fin del grupo de la configuración
@@ -806,6 +812,16 @@ const ConfiguracionHoja = () => {
                                   />
                                 </div>
                                 
+                                <div className="w-16 text-center">
+                                  <label className="block text-xs text-gray-600 mb-1">Editable</label>
+                                  <Checkbox
+                                    checked={excelConfig.isEditable ?? true}
+                                    onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { isEditable: e.checked })}
+                                    className="mt-1"
+                                    tooltip="Permite editar esta columna en el catálogo de alumnos"
+                                  />
+                                </div>
+                                
                                 {groupConfig.columns.length > 1 && (
                                   <Button
                                     icon="pi pi-trash"
@@ -868,6 +884,16 @@ const ConfiguracionHoja = () => {
                               value={excelConfig.label}
                               onChange={e => updateColumnFromGroup(groupConfig.id, excelConfig.id, { label: e.target.value })}
                               className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                            />
+                          </div>
+                          
+                          <div className="w-16 text-center">
+                            <label className="block text-xs text-gray-600 mb-1">Editable</label>
+                            <Checkbox
+                              checked={excelConfig.isEditable ?? true}
+                              onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { isEditable: e.checked })}
+                              className="mt-1"
+                              tooltip="Permite editar esta columna en el catálogo de alumnos"
                             />
                           </div>
                           {groupConfig.columns.length > 1 && (
@@ -940,6 +966,16 @@ const ConfiguracionHoja = () => {
                                 />
                               </div>
                             )}
+                            
+                            <div className="w-16 text-center">
+                              <label className="block text-xs text-gray-600 mb-1">Editable</label>
+                              <Checkbox
+                                checked={excelConfig.isEditable ?? true}
+                                onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { isEditable: e.checked })}
+                                className="mt-1"
+                                tooltip="Permite editar esta columna en el catálogo de alumnos"
+                              />
+                            </div>
 
                             {groupConfig.columns.length > 1 && (
                               <Button
@@ -1010,6 +1046,20 @@ const ConfiguracionHoja = () => {
                       <span className={`px-2 py-1 rounded text-xs font-medium bg-indigo-100 text-indigo-800`}>
                         { (rowData.category || '').toUpperCase() }
                       </span>
+                    )}
+                  />
+                  <Column 
+                    field="editable" 
+                    header="Editable" 
+                    style={{ width: '80px', textAlign: 'center' }}
+                    body={(rowData) => (
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={rowData.isEditable}
+                          disabled={true}
+                          className="cursor-not-allowed"
+                        />
+                      </div>
                     )}
                   />
                   <Column 

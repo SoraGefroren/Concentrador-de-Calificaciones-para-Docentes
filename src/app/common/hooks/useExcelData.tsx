@@ -14,6 +14,7 @@ export interface ColumnExcelConfig {
     label: string;          // Nombre de la columna
     date: string | null;    // Fecha del grupo de columnas
     points: number | null;  // Puntos del grupo de columnas;
+    isEditable?: boolean | null;   // Indica si la columna es editable
     isNew?: boolean;        // Indica si la columna es nueva (no guardada aún)
 }
 
@@ -22,8 +23,8 @@ export interface ColumnGroupConfig {
     color: string;      // Color de fondo del grupo de columnas
     label: string;      // Nombre del grupo de columnas
     isNew?: boolean;    // Indica si el grupo es nuevo (no guardado aún)
+    columns: Array<ColumnExcelConfig>;          // Arreglo de columnas dentro del grupo
     type: 'info' | 'period' | 'columns' | '';   // Tipo de grupo de columnas
-    columns: Array<ColumnExcelConfig>;
 }
 
 export const useExcelData = () => {
@@ -112,19 +113,29 @@ export const useExcelData = () => {
                                         points: 0,
                                         label: ((rowExcelHeader.length > 1 ? rowExcelHeader[3] : '') || '').toString(),
                                     };
-                                    // Leer encabezados de datos de columna: ['', '', '', 'Columna', 'Fecha', 'Puntos']
+                                    // Leer encabezados de datos de columna: ['', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable'] o ['', '', '', 'Columna', 'Fecha', 'Puntos']
                                     i++;
                                     if ((i < configData.length)) {
                                         const rowExcelConfig = configData[i];
-                                        // Detectar encabezados de datos de columna: ['', '', '', 'Columna', 'Fecha', 'Puntos']
-                                        if (rowExcelConfig[3] === 'Columna' && rowExcelConfig[4] === 'Fecha' && rowExcelConfig[5] === 'Puntos') {
-                                            // Leer información de encabezados de datos de columna: ['', '', '', 'G10', '19-ENE-22', '0']
+                                        // Detectar encabezados de datos de columna (con o sin campo Editable)
+                                        if (rowExcelConfig[3] === 'Columna' && rowExcelConfig[4] === 'Fecha' && rowExcelConfig[5] === 'Puntos' && rowExcelConfig[6] === 'Editable') {
+                                            // Leer información de encabezados de datos de columna: ['', '', '', 'G10', '19-ENE-22', '0', 'SI'] o ['', '', '', 'G10', '19-ENE-22', '0']
                                             i++;
                                             if ((i < configData.length)) {
                                                 const rowColumnExcel = configData[i];
                                                 currentColumn.id = rowColumnExcel[3] ? rowColumnExcel[3].toString() : '';
                                                 currentColumn.date = rowColumnExcel[4] ? rowColumnExcel[4].toString() : '';
                                                 currentColumn.points = parseInt(rowColumnExcel[5] ? rowColumnExcel[5].toString() : '0');
+                                                
+                                                // Manejar el campo isEditable si existe
+                                                if (rowExcelConfig[6] === 'Editable' && rowColumnExcel[6]) {
+                                                    const editableValue = rowColumnExcel[6].toString().toUpperCase();
+                                                    currentColumn.isEditable = editableValue === 'SI' || editableValue === 'TRUE' || editableValue === '1';
+                                                } else {
+                                                    // Valor por defecto si no se especifica
+                                                    currentColumn.isEditable = true;
+                                                }
+                                                
                                                 // Agregar la columna actual al grupo
                                                 currentGroup.columns.push(currentColumn);
                                             }
