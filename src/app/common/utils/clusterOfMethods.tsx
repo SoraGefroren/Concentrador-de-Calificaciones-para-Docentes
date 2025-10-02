@@ -1,6 +1,6 @@
 import FileUploadEvent from "../../features/adds/FileUploadEvent";
 import { DEFAULT_ACTIVITY_TEMPLATES, DEFAULT_FIXED_LEFT_HEADERS_INFO, DEFAULT_FIXED_RIGHT_HEADERS_COLS, DEFAULT_FIXED_RIGHT_HEADERS_INFO } from "../../features/configuration/types/HeaderConfiguration";
-import { useExcelData } from "../hooks/useExcelData";
+import { ColumnExcelData, useExcelData } from "../hooks/useExcelData";
 import { ColumnExcelConfig, ColumnGroupConfig, typeColumnsGroup, typeInfoGroup, typePeriodGroup } from "../hooks/useExcelData";
 
 // Función para generar una configuración de columnas por defecto
@@ -216,4 +216,22 @@ export const getSectionsColumnsConfig = (columnConfig: ColumnGroupConfig[]): {
   });
   // Devolver el resultado con las tres secciones
   return result;
+};
+
+// Función para obtener las columnas por grupo de color
+export const getExcelDataFromColumns = (vExcelData: ColumnExcelData, vGroupColumns: string[]): ColumnExcelData => {
+    // Crear un array con un solo objeto que contiene las columnas filtradas
+    const availableExcelData: ColumnExcelData = {};
+    // Filtrar todas las columnas excluyendo las de las secciones primera y tercera
+    vGroupColumns.forEach(columnKey => {
+        if (columnKey in vExcelData) {
+            // Asignar el valor si la columna existe
+            availableExcelData[columnKey] = vExcelData[columnKey];
+        } else {
+            // Asignar un valor predeterminado si la columna no existe
+            availableExcelData[columnKey] = '';
+        }
+    });
+    // Obtener las columnas del rango específico para este grupo
+    return availableExcelData;
 };
