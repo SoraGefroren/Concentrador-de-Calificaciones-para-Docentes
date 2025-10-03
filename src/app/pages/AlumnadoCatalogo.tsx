@@ -1,6 +1,6 @@
 import Menu from '../common/Menu.tsx';
 import { useExcelContext } from '../common/contexts/ExcelContext';
-import type { ExcelData } from '../common/hooks/useExcelData';
+import type { ColumnExcelConfig, ExcelData } from '../common/hooks/useExcelData';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { useNavigate } from 'react-router-dom';
@@ -40,9 +40,9 @@ const AlumnadoCatalogo = () => {
     const [searchTerm, setSearchTerm] = useState<string>('');
 
     // Separación clara de tipos de datos
-    const datesExcelData = [...excelData].slice(0, 1)[0];
-    const pointsExcelData = [...excelData].slice(1, 2)[0];
-    const studentsExcelData = [...excelData].slice(2, excelData.length);
+    const datesExcelData = excelData.length > 0 ? [...excelData].slice(0, 1)[0] || {}: {};
+    const pointsExcelData = excelData.length > 1 ? [...excelData].slice(1, 2)[0] || {}: {};
+    const studentsExcelData = excelData.length > 2 ? [...excelData].slice(2, excelData.length) || []: [];
 
     // Tomar la configuración de secciones izquierda, centro y derecha
     const groupSectionConfig = getSectionsColumnsConfig(columnConfig);
@@ -73,6 +73,14 @@ const AlumnadoCatalogo = () => {
         return [pointsExcelData, ...filteredStudentsExcelData].filter(Boolean);
     }, [pointsExcelData, filteredStudentsExcelData]);
 
+    
+    // Campos de las secciones según la lógica del modal
+    const centralSectionColumnExcel: Array<ColumnExcelConfig> = [
+        ...groupSectionConfig.center.flatMap((groupConfig) => 
+            groupConfig.columns.map((excelConfig) => excelConfig)
+        )
+    ];
+
     // Lista de columnas que queremos mostrar
     const columnsToShow = [
         ...groupSectionConfig.left.flatMap((groupConfig) => 
@@ -82,6 +90,9 @@ const AlumnadoCatalogo = () => {
             groupConfig.columns.map((excelConfig) => excelConfig.label)
         )
     ];
+
+    // La primera columna es siempre el ID
+    const idColumnName = columnsToShow.pop() || '';
 
     // Función para copiar texto al portapapeles
     const copyToClipboard = async (text: string) => {

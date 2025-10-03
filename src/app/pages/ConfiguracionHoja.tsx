@@ -28,6 +28,9 @@ const ConfiguracionHoja = () => {
 
   // Determinar si hay datos de Excel para mostrar o no el Menu
   const hasExcelData: boolean = (excelData).length > 0;
+
+  // Abstraer los datos de los estudiantes
+  const studentsExcelData = excelData.length > 2 ? [...excelData].slice(2, excelData.length) : [];
   
   /*
    * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
@@ -403,8 +406,8 @@ const ConfiguracionHoja = () => {
             arrayHeaderFields.push(excelConfig.label || '');
           });
         });
-        if (excelData && (excelData.length > 0) && (arrayHeaderFields.length > 0)) {
-          excelData.forEach((rowData) => {
+        if (studentsExcelData && (studentsExcelData.length > 0) && (arrayHeaderFields.length > 0)) {
+          studentsExcelData.forEach((rowData) => {
             // Se inserta una nueva fila
             matrixExcelData.push([]);
             const lastIndex = matrixExcelData.length - 1;

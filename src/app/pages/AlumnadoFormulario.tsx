@@ -24,6 +24,11 @@ const AlumnadoFormulario = () => {
     const excelData = context?.excelData || [];
     const columnConfig = context?.columnConfig || [];
     const { id, mode } = useParams<{ id?: string; mode?: string }>();
+
+    // Abstraer los datos de los estudiantes
+    const formDates = excelData.length > 0 ? [...excelData].slice(0, 1)[0] || {}: {};
+    const formPoints = excelData.length > 1 ? [...excelData].slice(1, 2)[0] || {}: {};
+    const studentsExcelData = excelData.length > 2 ? [...excelData].slice(2, excelData.length) : [];
     
     // Determinar el modo del formulario
     const formMode: FormMode = (() => {
@@ -69,7 +74,7 @@ const AlumnadoFormulario = () => {
     // Encontrar los datos del alumno seleccionado (solo si no es modo registro)
     const alumnoData = formMode === 'register' 
         ? null 
-        : excelData.find((row: ColumnExcelData) => row[idColumnName]?.toString() === id);
+        : studentsExcelData.find((row: ColumnExcelData) => row[idColumnName]?.toString() === id);
     
     // Estado para los datos editables
     const [formDatas, setFormDatas] = useState<ColumnExcelData>(() => {
@@ -78,7 +83,7 @@ const AlumnadoFormulario = () => {
             // Inicalizar un nuevo objeto para los datos del formulario
             const newExcelData: ColumnExcelData = {};
             // Asignar un ID temporal para el nuevo alumno
-            newExcelData[idColumnName] = Math.max(...excelData.map((row: ColumnExcelData) => parseInt(row[idColumnName]?.toString() || '0', 10))) + 1;
+            newExcelData[idColumnName] = Math.max(...studentsExcelData.map((row: ColumnExcelData) => parseInt(row[idColumnName]?.toString() || '0', 10))) + 1;
             // Compone el resto de campos con valores vacíos
             for (const cExcelConfig of firstSectionColumnExcel) {
                 newExcelData[cExcelConfig.label] = '';
@@ -101,9 +106,6 @@ const AlumnadoFormulario = () => {
             setFormDatas(alumnoData);
         }
     }, [alumnoData, formMode]);
-    
-    const formDates = [...excelData].slice(0, 1)[0] || {};
-    const formPoints = [...excelData].slice(1, 2)[0] || {};
     
     // Menu de error si no se encuentra el alumno
     if (!alumnoData && formMode !== 'register') {
@@ -153,10 +155,11 @@ const AlumnadoFormulario = () => {
                     return;
                 }
             }
-
+            
             if (formMode === 'register') {
                 // Modo registro: Agregar nuevo alumno al array de datos
-                const newExcelData = [...excelData, formDatas];
+                formDatas[idColumnName] = studentsExcelData.length + 1;
+                const newExcelData = [...studentsExcelData, formDatas];
                 
                 // Los datos se actualizarán cuando se recargue el archivo generado
                 
@@ -175,7 +178,7 @@ const AlumnadoFormulario = () => {
                 
             } else {
                 // Modo edición: Actualizar alumno existente
-                const updatedExcelData = excelData.map((row: ColumnExcelData) => 
+                const updatedExcelData = studentsExcelData.map((row: ColumnExcelData) => 
                     row[idColumnName]?.toString() === id ? formDatas : row
                 );
                 
