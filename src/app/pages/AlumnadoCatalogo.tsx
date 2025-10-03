@@ -1,6 +1,6 @@
 import Menu from '../common/Menu.tsx';
 import { useExcelContext } from '../common/contexts/ExcelContext';
-import type { ColumnExcelConfig, ExcelData } from '../common/hooks/useExcelData';
+import type { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig } from '../common/hooks/useExcelData';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { useNavigate } from 'react-router-dom';
@@ -34,15 +34,26 @@ import { formatFieldName, getSectionsColumnsConfig } from '../common/utils/clust
 const AlumnadoCatalogo = () => {
     const navigate = useNavigate();
     const toast = useRef<Toast>(null);
-    const {excelData, columnConfig} = useExcelContext();
-    const [selectedData, setSelectedData] = useState<ExcelData | null>(null);
-    const [activeModal, setActiveModal] = useState<'black' | 'green' | 'purple' | null>(null);
+    const context = useExcelContext();
+    const excelData = useMemo(() => context?.excelData || [], [context?.excelData]);
+    const columnConfig = useMemo(() => context?.columnConfig || [], [context?.columnConfig]);
+    const [selectedData, setSelectedData] = useState<ColumnExcelData | null>(null);
+    const [activeModal, setActiveModal] = useState<{groupId: string; groupInfo: ColumnGroupConfig} | null>(null);
     const [searchTerm, setSearchTerm] = useState<string>('');
 
-    // Separación clara de tipos de datos
-    const datesExcelData = excelData.length > 0 ? [...excelData].slice(0, 1)[0] || {}: {};
-    const pointsExcelData = excelData.length > 1 ? [...excelData].slice(1, 2)[0] || {}: {};
-    const studentsExcelData = excelData.length > 2 ? [...excelData].slice(2, excelData.length) || []: [];
+    // Separación clara de tipos de datos con optimización de memoria
+    const datesExcelData = useMemo(() => 
+        excelData.length > 0 ? [...excelData].slice(0, 1)[0] || {} : {},
+        [excelData]
+    );
+    const pointsExcelData = useMemo(() => 
+        excelData.length > 1 ? [...excelData].slice(1, 2)[0] || {} : {},
+        [excelData]
+    );
+    const studentsExcelData = useMemo(() => 
+        excelData.length > 2 ? [...excelData].slice(2, excelData.length) || [] : [],
+        [excelData]
+    );
 
     // Tomar la configuración de secciones izquierda, centro y derecha
     const groupSectionConfig = getSectionsColumnsConfig(columnConfig);
@@ -74,16 +85,19 @@ const AlumnadoCatalogo = () => {
     }, [pointsExcelData, filteredStudentsExcelData]);
 
     
-    // Campos de las secciones según la lógica del modal
-    const centralSectionColumnExcel: Array<ColumnExcelConfig> = [
-        ...groupSectionConfig.center.flatMap((groupConfig) => 
+    // Campos de las secciones según la nueva lógica dinámica
+    const leftSectionColumnExcel: Array<ColumnExcelConfig> = [
+        ...groupSectionConfig.left.flatMap((groupConfig) => 
             groupConfig.columns.map((excelConfig) => excelConfig)
         )
     ];
 
-    // Lista de columnas que queremos mostrar
+    // Lista de TODAS las columnas que queremos mostrar (left + center + right)
     const columnsToShow = [
         ...groupSectionConfig.left.flatMap((groupConfig) => 
+            groupConfig.columns.map((excelConfig) => excelConfig.label)
+        ),
+        ...groupSectionConfig.center.flatMap((groupConfig) => 
             groupConfig.columns.map((excelConfig) => excelConfig.label)
         ),
         ...groupSectionConfig.right.flatMap((groupConfig) => 
@@ -91,8 +105,8 @@ const AlumnadoCatalogo = () => {
         )
     ];
 
-    // La primera columna es siempre el ID
-    const idColumnName = columnsToShow.pop() || '';
+    // La primera columna es siempre el ID (primera columna de la sección izquierda)
+    const idColumnName = leftSectionColumnExcel[0]?.label || '';
 
     // Función para copiar texto al portapapeles
     const copyToClipboard = async (text: string) => {
@@ -116,7 +130,7 @@ const AlumnadoCatalogo = () => {
 
     const chooseBodyTemplate = (excelColumn: string) => {
         // Retornamos una función que recibe el rowData y rowIndex
-        return (rowData: ExcelData, props: { rowIndex: number }) => {
+        return (rowData: ColumnExcelData, props: { rowIndex: number }) => {
             const { rowIndex } = props;
             
             // CASO ESPECIAL: Primera fila (rowIndex === 0) = Fila de PUNTOS
@@ -131,7 +145,7 @@ const AlumnadoCatalogo = () => {
     };
 
     // Template para la fila especial de puntos (rowIndex === 0)
-    const renderPointsRowTemplate = (rowData: ExcelData, excelColumn: string) => {
+    const renderPointsRowTemplate = (rowData: ColumnExcelData, excelColumn: string) => {
         // Si el campo es un número, le damos formato
         if (rowData[excelColumn] && (rowData[excelColumn] !== 'Puntos')) {
             return  <div className="w-full text-right font-bold">
@@ -146,8 +160,9 @@ const AlumnadoCatalogo = () => {
     };
 
     // Template para filas de estudiantes (rowIndex > 0)
-    const renderStudentRowTemplate = (rowData: ExcelData, excelColumn: string, rowIndex: number) => {
-        if (columnsToShow[0] == excelColumn) {
+    const renderStudentRowTemplate = (rowData: ColumnExcelData, excelColumn: string, rowIndex: number) => {
+        // Verificar si es la primera columna (ID) para mostrar botones de acción
+        if (idColumnName === excelColumn) {
             return columnContentValueIDTemplate(rowData, { field: excelColumn, rowIndex });
         } else if (excelColumn.match(/^(.+)@(.+)$/)) {
             return columnContentValueMailTemplate(rowData, { field: excelColumn, rowIndex });
@@ -169,7 +184,7 @@ const AlumnadoCatalogo = () => {
         }
     };
     
-    const columnContentValueIDTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
+    const columnContentValueIDTemplate = (rowData: ColumnExcelData, props: { field: string, rowIndex: number }) => {
         return (
             <div className="w-full flex justify-center justify-end gap-2 text-right font-bold">
                 <span
@@ -201,7 +216,7 @@ const AlumnadoCatalogo = () => {
         );
     };
     
-    const columnContentValueMailTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
+    const columnContentValueMailTemplate = (rowData: ColumnExcelData, props: { field: string, rowIndex: number }) => {
         if (rowData[props.field]) {
             const email = String(rowData[props.field]);
             return (
@@ -247,7 +262,7 @@ const AlumnadoCatalogo = () => {
         }
     };
     
-    const getRowClassName = (data: ExcelData) => {
+    const getRowClassName = (data: ColumnExcelData) => {
         // Obtenemos el índice de la fila actual en los datos originales
         const originalRowIndex = excelData.indexOf(data);
         // La fila 0 es especial, mantener su estilo original
@@ -264,14 +279,15 @@ const AlumnadoCatalogo = () => {
     };
     
     // Template para la columna de acciones
-    const columnContentValueAccsTemplate = (rowData: ExcelData, props: { field: string, rowIndex: number }) => {
+    const columnContentValueAccsTemplate = (rowData: ColumnExcelData, props: { field: string, rowIndex: number }) => {
         if (props.rowIndex === 0) return null;
         return (
             <StudentActionButtons
                 rowData={rowData}
-                onSelectData={(data, variant) => {
+                centerGroups={groupSectionConfig.center}
+                onSelectData={(data, groupId, groupInfo) => {
                     setSelectedData(data);
-                    setActiveModal(variant);
+                    setActiveModal({ groupId, groupInfo });
                 }}
             />
         );
@@ -379,32 +395,17 @@ const AlumnadoCatalogo = () => {
 
             </div>
 
-            <StudentDetailsModal
-                visible={activeModal === 'black'}
-                onHide={() => setActiveModal(null)}
-                points={pointsExcelData}
-                dates={datesExcelData}
-                data={selectedData}
-                variant="black"
-            />
-
-            <StudentDetailsModal
-                visible={activeModal === 'green'}
-                onHide={() => setActiveModal(null)}
-                points={pointsExcelData}
-                dates={datesExcelData}
-                data={selectedData}
-                variant="green"
-            />
-
-            <StudentDetailsModal
-                visible={activeModal === 'purple'}
-                onHide={() => setActiveModal(null)}
-                points={pointsExcelData}
-                dates={datesExcelData}
-                data={selectedData}
-                variant="purple"
-            />
+            {activeModal && (
+                <StudentDetailsModal
+                    visible={true}
+                    onHide={() => setActiveModal(null)}
+                    points={pointsExcelData}
+                    dates={datesExcelData}
+                    data={selectedData}
+                    groupInfo={activeModal.groupInfo}
+                    columnConfig={columnConfig}
+                />
+            )}
             
         </Menu>
     );

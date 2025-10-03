@@ -137,6 +137,30 @@ export const updatedLocalStorage = async (context: ReturnType<typeof useExcelDat
 export const formatFieldName = (fieldName: string): string => {
     return fieldName.replace(/[ÁÉÍÓÚÜáéíóúüÑñ]/g, '�');
 }
+// Función para formatear valores de fecha desde Excel
+export const formatDateValue = (value: string | number | null | undefined): string => {
+    // Si el valor es nulo, undefined o una cadena vacía, se retorna una cadena vacía
+    // if (!value || value === 'Fecha') return '';
+    if (!value) return '';
+    // Tratar como número o string que representa un número
+    try {
+        // Si es un número o un string que representa un número, se asume formato Excel
+        if (!isNaN(Number(value))) {
+            const excelEpoch = new Date(1899, 11, 30); // 30 de diciembre de 1899
+            const date = new Date(excelEpoch.getTime() + Number(value) * 24 * 60 * 60 * 1000);
+            return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
+        }
+        // Si es un string que parece una fecha como '27-Aug-21'
+        const parsedDate = new Date(value);
+        if (!isNaN(parsedDate.getTime())) {
+            return `${String(parsedDate.getDate()).padStart(2, '0')}/${String(parsedDate.getMonth() + 1).padStart(2, '0')}/${parsedDate.getFullYear()}`;
+        }
+        // Si no se puede parsear, se devuelve tal cual
+        return String(value);
+    } catch {
+        return String(value);
+    }
+};
 
 // Función para formatear los headers de las columnas (igual que en AlumnadoCatalogo y StudentDetailsModal)
 export const formatColumnHeader = (columnName: string): string => {
