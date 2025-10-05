@@ -209,40 +209,48 @@ const AlumnadoCatalogo = () => {
 
     const columnContentValueIdentifierTemplate = (rowData: ColumnExcelData, props: { field: string, rowIndex: number }) => {
         return (
-            <div className="w-full flex justify-center justify-end gap-2 text-right font-bold">
-                <span
-                    className="p-button-rounded p-2">
+            <div className="w-full flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-2 text-right font-bold">
+                <span className="p-button-rounded px-2 py-1 bg-gray-100 rounded text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-0">
                     { rowData[props.field] || '0' }
                 </span>
-                <Button
-                    icon="pi pi-file-edit"
-                    iconPos="right"
-                    className="p-button-rounded text-white bg-blue-500 hover:bg-blue-800 p-2"
-                    style={{ fontWeight: 'bolder' }}
-                    onClick={() => navigate(`/alumno/${rowData[props.field]}`)}
-                    tooltip="Editar Alumno"
-                />
-                <Button 
-                    icon="pi pi-eye"
-                    className="p-button-rounded text-white bg-green-500 hover:bg-green-800 p-2"
-                    style={{ fontWeight: 'bolder', color: 'lightgray' }}
-                    onClick={() => navigate(`/alumno/${rowData[props.field]}/vista`)}
-                    tooltip="Ver Alumno"
-                />
-                <Button 
-                    icon="pi pi-trash"
-                    className="p-button-rounded p-button-secondary"
-                    style={{ backgroundColor: 'red', fontWeight: 'bolder', color: 'lightgray' }}
-                    onClick={() => {
-                        // Obtener nombre del estudiante si existe (buscar en columnas comunes de nombre)
-                        const possibleNameFields = ['NOMBRE', 'Nombre', 'nombre', 'NOMBRES', 'Nombres', 'nombres'];
-                        const studentName = possibleNameFields.find(field => rowData[field])
-                            ? String(rowData[possibleNameFields.find(field => rowData[field]) || ''])
-                            : undefined;
-                        showDeleteConfirmation(rowData[props.field], studentName);
-                    }}
-                    tooltip="Eliminar Alumno"
-                />
+                <div className="flex gap-1">
+                    <Button
+                        icon="pi pi-file-edit"
+                        className="p-button-rounded text-white bg-blue-500 hover:bg-blue-800"
+                        style={{ 
+                            fontWeight: 'bolder'
+                        }}
+                        onClick={() => navigate(`/alumno/${rowData[props.field]}`)}
+                        tooltip="Editar"
+                    />
+                    <Button 
+                        icon="pi pi-eye"
+                        className="p-button-rounded text-white bg-green-500 hover:bg-green-800"
+                        style={{ 
+                            fontWeight: 'bolder'
+                        }}
+                        onClick={() => navigate(`/alumno/${rowData[props.field]}/vista`)}
+                        tooltip="Ver"
+                    />
+                    <Button 
+                        icon="pi pi-trash"
+                        className="p-button-rounded p-button-secondary"
+                        style={{ 
+                            backgroundColor: 'red', 
+                            fontWeight: 'bolder', 
+                            color: 'lightgray'
+                        }}
+                        onClick={() => {
+                            // Obtener nombre del estudiante si existe (buscar en columnas comunes de nombre)
+                            const possibleNameFields = ['NOMBRE', 'Nombre', 'nombre', 'NOMBRES', 'Nombres', 'nombres'];
+                            const studentName = possibleNameFields.find(field => rowData[field])
+                                ? String(rowData[possibleNameFields.find(field => rowData[field]) || ''])
+                                : undefined;
+                            showDeleteConfirmation(rowData[props.field], studentName);
+                        }}
+                        tooltip="Eliminar"
+                    />
+                </div>
             </div>
         );
     };
@@ -250,11 +258,22 @@ const AlumnadoCatalogo = () => {
     const columnContentValueMailTemplate = (rowData: ColumnExcelData, props: { field: string, rowIndex: number }) => {
         if (rowData[props.field] || rowData[formatFieldName(props.field)]) {
             const email = String(rowData[props.field] || rowData[formatFieldName(props.field)]);
+            
+            // Truncar email en móvil si es muy largo
+            const truncateEmail = (email: string, maxLength: number = 20) => {
+                if (email.length <= maxLength) return email;
+                const [username, domain] = email.split('@');
+                if (username.length > maxLength - domain.length - 3) {
+                    return `${username.substring(0, maxLength - domain.length - 6)}...@${domain}`;
+                }
+                return email;
+            };
+            
             return (
-                <div className="p-inputgroup w-100" style={{ maxWidth: '280px' }}>
+                <div className="p-inputgroup w-full max-w-[200px] sm:max-w-[280px]">
                     <Button
-                        label={email}
-                        className="p-button-text"
+                        label={window.innerWidth < 640 ? truncateEmail(email) : email}
+                        className="p-button-text overflow-hidden"
                         style={{ 
                             color: '#2563eb',
                             textDecoration: 'underline',
@@ -263,14 +282,17 @@ const AlumnadoCatalogo = () => {
                             border: '1px solid #dee2e6',
                             borderRight: 'none',
                             backgroundColor: '#ffffff',
-                            padding: '0.5rem 0.75rem',
-                            fontSize: '0.875rem',
+                            padding: '0.375rem 0.5rem',
+                            fontSize: '0.75rem',
                             textAlign: 'left',
                             minWidth: '0',
-                            flex: '1'
+                            flex: '1',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis'
                         }}
                         onClick={() => window.open(`mailto:${email}`, '_blank')}
-                        tooltip="Enviar correo electrónico"
+                        tooltip={`Enviar correo a: ${email}`}
                     />
                     <Button
                         icon="pi pi-copy"
@@ -280,11 +302,12 @@ const AlumnadoCatalogo = () => {
                             border: '1px solid #dee2e6',
                             backgroundColor: '#f8f9fa',
                             color: '#6c757d',
-                            padding: '0.5rem',
-                            minWidth: '2.5rem'
+                            padding: '0.375rem',
+                            minWidth: '2rem',
+                            fontSize: '0.75rem'
                         }}
                         onClick={() => copyToClipboard(email)}
-                        tooltip="Copiar correo electrónico"
+                        tooltip="Copiar correo"
                     />
                 </div>
             );
@@ -314,13 +337,15 @@ const AlumnadoCatalogo = () => {
             
             <Toast ref={toast} />
 
-            <div className="py-4 mx-auto">
+            <div className="py-2 sm:py-4 mx-auto px-2 sm:px-4 lg:px-6">
                 
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="flex-none text-3xl font-bold text-gray-800">
+                {/* Header responsivo con búsqueda y botón */}
+                <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-6">
+                    {/* Barra de búsqueda */}
+                    <div className="flex-1 max-w-md">
                         <div className="p-inputgroup">
                             <InputText
-                                className="bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                                className="bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2 text-sm md:text-base"
                                 placeholder="Buscar estudiante..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -329,53 +354,106 @@ const AlumnadoCatalogo = () => {
                                 <span className='pi pi-search'></span>
                             </span>
                         </div>
-                    </h2>
-                    <div className="flex gap-3">
+                    </div>
+                    {/* Botones de acción */}
+                    <div className="flex gap-3 justify-end lg:justify-start">
                         <Button 
                             label="Registrar Alumno"
                             icon="pi pi-file"
                             onClick={() => navigate('/alumno/nuevo')}
-                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2 text-sm md:text-base px-3 md:px-4"
                         />
                     </div>
                 </div>
-                
-                <div className="w-full overflow-x-auto">
-                    <style>
-                        {`
+
+                <style>
+                    {`
+                        .custom-table .p-datatable-thead > tr > th {
+                            background-color: #374151 !important; /* bg-gray-800 - mismo color que el menú */
+                            color: white !important;
+                            font-weight: 600 !important;
+                            border: 1px solid #4b5563 !important;
+                            padding: 0.5rem !important;
+                            text-align: center !important;
+                            font-size: 0.875rem !important;
+                        }
+                        
+                        /* Responsive header padding */
+                        @media (min-width: 768px) {
                             .custom-table .p-datatable-thead > tr > th {
-                                background-color: #374151 !important; /* bg-gray-800 - mismo color que el menú */
-                                color: white !important;
-                                font-weight: 600 !important;
-                                border: 1px solid #4b5563 !important;
                                 padding: 0.75rem !important;
-                                text-align: center !important;
+                                font-size: 1rem !important;
                             }
-                            .custom-table {
-                                border-radius: 0.5rem !important;
-                                overflow: hidden !important;
-                                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-                            }
+                        }
+                        
+                        .custom-table {
+                            border-radius: 0.5rem !important;
+                            overflow: hidden !important;
+                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+                            min-width: 800px !important; /* Ancho mínimo para scroll horizontal */
+                        }
+                        
+                        .custom-table .p-datatable-tbody > tr > td {
+                            border: 1px solid #e5e7eb !important;
+                            padding: 0.5rem !important;
+                            font-size: 0.875rem !important;
+                        }
+                        
+                        /* Responsive body padding */
+                        @media (min-width: 768px) {
                             .custom-table .p-datatable-tbody > tr > td {
-                                border: 1px solid #e5e7eb !important;
                                 padding: 0.75rem !important;
+                                font-size: 1rem !important;
                             }
-                            .custom-table .p-datatable-tbody > tr.special-row {
-                                background-color: #3b82f6 !important; /* bg-blue-500 - azul más fuerte */
-                                color: white !important; /* Texto blanco para contraste */
+                        }
+                        
+                        .custom-table .p-datatable-tbody > tr.special-row {
+                            background-color: #3b82f6 !important; /* bg-blue-500 - azul más fuerte */
+                            color: white !important; /* Texto blanco para contraste */
+                        }
+                        .custom-table .p-datatable-tbody > tr.special-row > td {
+                            border: none !important; /* Sin bordes para la fila especial */
+                            border-top: 1px solid #3b82f6 !important; /* Solo borde superior del mismo color */
+                            border-bottom: 1px solid #3b82f6 !important; /* Solo borde inferior del mismo color */
+                        }
+                        .custom-table .p-datatable-tbody > tr.special-row:hover {
+                            background-color: #2563eb !important; /* bg-blue-600 - azul aún más fuerte en hover */
+                        }
+                        
+                        /* Estilos específicos para móvil */
+                        @media (max-width: 767px) {
+                            .custom-table {
+                                font-size: 0.75rem !important;
                             }
-                            .custom-table .p-datatable-tbody > tr.special-row > td {
-                                border: none !important; /* Sin bordes para la fila especial */
-                                border-top: 1px solid #3b82f6 !important; /* Solo borde superior del mismo color */
-                                border-bottom: 1px solid #3b82f6 !important; /* Solo borde inferior del mismo color */
+                            
+                            .mobile-scroll-hint {
+                                display: block !important;
                             }
-                            .custom-table .p-datatable-tbody > tr.special-row:hover {
-                                background-color: #2563eb !important; /* bg-blue-600 - azul aún más fuerte en hover */
-                            }
-                        `}
-                    </style>
+                        }
+                        
+                        .mobile-scroll-hint {
+                            display: none;
+                            background-color: #f3f4f6;
+                            padding: 0.5rem;
+                            text-align: center;
+                            font-size: 0.75rem;
+                            color: #6b7280;
+                            border-bottom: 1px solid #d1d5db;
+                        }
+                    `}
+                </style>
+                
+                {/* Indicador de scroll para móvil */}
+                <div className="mobile-scroll-hint">
+                    <i className="pi pi-arrow-right mr-2"></i>
+                    Desliza horizontalmente para ver más columnas
+                </div>
+                
+                {/* Contenedor de tabla con scroll responsivo */}
+                <div className="w-full overflow-x-auto bg-white rounded-lg shadow-lg">
                     <DataTable 
                         scrollable
+                        scrollHeight="70vh"
                         rowClassName={getRowClassName}
                         value={tableDataExcelData}
                         tableStyle={{ minWidth: '100%', maxWidth: '100%' }}
@@ -383,27 +461,34 @@ const AlumnadoCatalogo = () => {
                     >
                         {excelData.length > 0 &&
                             columnsToShow.map((col, index) => (
-                                <Column field={col} 
-                                        header={formatColumnHeader(col)}
-                                        key={`${col}-${index}`}
-                                        body={columnContentShowBodyTemplate(col)} />
+                                <Column 
+                                    field={col} 
+                                    header={formatColumnHeader(col)}
+                                    key={`${col}-${index}`}
+                                    body={columnContentShowBodyTemplate(col)}
+                                />
                             ))
                         }
                         <Column 
                             header="Acciones"
                             body={columnContentValueAccsTemplate}
-                            style={{ width: '10rem', textAlign: 'center' }}
+                            style={{ 
+                                minWidth: '140px',
+                                maxWidth: '180px',
+                                textAlign: 'center'
+                            }}
                         />
                     </DataTable>
                 </div>
 
-                <div className="flex justify-end items-center mb-6">
+                {/* Botón inferior responsivo */}
+                <div className="flex justify-end items-center mt-6 mb-6">
                     <div className="flex gap-3 pt-3">
                         <Button 
                             label="Registrar Alumno"
                             icon="pi pi-file"
                             onClick={() => navigate('/alumno/nuevo')}
-                            className="p-button-success text-white bg-green-500 hover:bg-green-800 p-2"
+                            className="p-button-success text-white bg-green-500 hover:bg-green-800 px-4 py-2 text-sm md:text-base"
                         />
                     </div>
                 </div>
