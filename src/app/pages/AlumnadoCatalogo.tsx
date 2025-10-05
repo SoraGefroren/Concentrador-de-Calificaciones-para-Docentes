@@ -9,8 +9,9 @@ import { Toast } from 'primereact/toast';
 import { useState, useRef, useMemo } from 'react';
 import StudentDetailsModal from '../common/modals/students/StudentDetailsModal.tsx';
 import StudentActionButtons from '../common/modals/students/StudentActionButtons.tsx';
+import DeleteStudentModal from '../common/modals/students/DeleteStudentModal.tsx';
 import { InputText } from 'primereact/inputtext';
-import { formatFieldName, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
+import { formatColumnHeader, formatFieldName, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
 
 /**
  * ARQUITECTURA DE DATOS REFACTORIZADA:
@@ -27,7 +28,7 @@ import { formatFieldName, getSectionsColumnsConfig } from '../common/utils/clust
  * Beneficios de esta estructura:
  * ✅ Separación clara de responsabilidades
  * ✅ Reactualización automática con useMemo cuando cambian los estudiantes
- * ✅ Lógica más legible en chooseBodyTemplate
+ * ✅ Lógica más legible en columnContentShowBodyTemplate
  * ✅ Mantiene la fila especial de puntos de manera explícita
  */
 
@@ -38,6 +39,7 @@ const AlumnadoCatalogo = () => {
     const excelData = useMemo(() => context?.excelData || [], [context?.excelData]);
     const columnConfig = useMemo(() => context?.columnConfig || [], [context?.columnConfig]);
     const [selectedData, setSelectedData] = useState<ColumnExcelData | null>(null);
+    const [deleteModal, setDeleteModal] = useState<{visible: boolean; studentId: string | number; studentName?: string} | null>(null);
     const [activeModal, setActiveModal] = useState<{groupId: string; groupInfo: ColumnGroupConfig} | null>(null);
     const [searchTerm, setSearchTerm] = useState<string>('');
 
@@ -97,9 +99,6 @@ const AlumnadoCatalogo = () => {
         ...groupSectionConfig.left.flatMap((groupConfig) => 
             groupConfig.columns.map((excelConfig) => excelConfig.label)
         ),
-        ...groupSectionConfig.center.flatMap((groupConfig) => 
-            groupConfig.columns.map((excelConfig) => excelConfig.label)
-        ),
         ...groupSectionConfig.right.flatMap((groupConfig) => 
             groupConfig.columns.map((excelConfig) => excelConfig.label)
         )
@@ -107,6 +106,23 @@ const AlumnadoCatalogo = () => {
 
     // La primera columna es siempre el ID (primera columna de la sección izquierda)
     const idColumnName = leftSectionColumnExcel[0]?.label || '';
+
+    // Función para asignar clases CSS a las filas (colorear filas alternadas)
+    const getRowClassName = (data: ColumnExcelData) => {
+        // Obtenemos el índice de la fila actual en los datos originales
+        const originalRowIndex = excelData.indexOf(data);
+        // La fila 0 es especial, mantener su estilo original
+        if (originalRowIndex === 0) {
+            return 'bg-blue-500 text-white font-bold special-row';
+        }
+        // Para las demás filas, aplicar colores intercalados basándose en el ID o posición
+        // Usamos el originalRowIndex para determinar el color
+        if ((originalRowIndex - 1) % 2 === 0) {
+            return 'bg-[#99b1d5] hover:bg-[#7789a5] hover:text-white transition-colors duration-200'; // Azul suave para filas pares
+        } else {
+            return 'bg-white hover:bg-[#7789a5] hover:text-white transition-colors duration-200'; // Blanco para filas impares
+        }
+    };
 
     // Función para copiar texto al portapapeles
     const copyToClipboard = async (text: string) => {
@@ -128,63 +144,70 @@ const AlumnadoCatalogo = () => {
         }
     };
 
-    const chooseBodyTemplate = (excelColumn: string) => {
+    // Función para mostrar la modal de confirmación de eliminación
+    const showDeleteConfirmation = (studentId: string | number, studentName?: string) => {
+        setDeleteModal({
+            visible: true,
+            studentId,
+            studentName
+        });
+    };
+
+    const columnContentShowBodyTemplate = (excelColumn: string) => {
         // Retornamos una función que recibe el rowData y rowIndex
         return (rowData: ColumnExcelData, props: { rowIndex: number }) => {
             const { rowIndex } = props;
-            
             // CASO ESPECIAL: Primera fila (rowIndex === 0) = Fila de PUNTOS
             if (rowIndex === 0) {
-                return renderPointsRowTemplate(rowData, excelColumn);
+                // Si el campo es un número, le damos formato
+                if (rowData[excelColumn] && (rowData[excelColumn] !== 'Puntos')) {
+                    return  <div className="w-full text-right font-bold">
+                                { rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || 0 }
+                            </div>;
+                } else {
+                    // Etiqueta de fecha vacía o no válida
+                    return  <div className="w-full text-right font-bold">
+                                { rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '' }
+                            </div>;
+                }
             } 
             // CASO NORMAL: Todas las demás filas = ESTUDIANTES
             else {
-                return renderStudentRowTemplate(rowData, excelColumn, rowIndex);
+                // Verificar si es la primera columna (ID) para mostrar botones de acción
+                if (idColumnName === excelColumn) {
+                    return columnContentValueIdentifierTemplate(rowData, { field: excelColumn, rowIndex });    
+                // Verificar el contenido hace match con el formato de los correos electrónicos
+                } else if (
+                    rowData[excelColumn] && (rowData[excelColumn] as string).match(/^(.+)@(.+)$/) ||
+                    rowData[formatFieldName(excelColumn)] && (rowData[formatFieldName(excelColumn)] as string).match(/^(.+)@(.+)$/)
+                ) {
+                    return columnContentValueMailTemplate(rowData, { field: excelColumn, rowIndex });
+                // Verificar si es algún tipo de número para formatearlo
+                } else if (
+                    (rowData[excelColumn] || rowData[excelColumn] == '0') && !isNaN(Number(rowData[excelColumn])) ||
+                    (rowData[formatFieldName(excelColumn)] || rowData[formatFieldName(excelColumn)] == '0') && !isNaN(Number(rowData[formatFieldName(excelColumn)]))
+                ) {
+                    return <div className="w-full text-right">
+                                { 
+                                    new Intl.NumberFormat('en-US', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                    }).format(
+                                        parseFloat((rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '0') + '')
+                                    )
+                                }
+                            </div>
+                // Simplemente mostrar el valor como texto
+                } else {
+                    return  <div className="w-full text-left font-semibold">
+                                { rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '' }
+                            </div>;
+                }
             }
         };
     };
 
-    // Template para la fila especial de puntos (rowIndex === 0)
-    const renderPointsRowTemplate = (rowData: ColumnExcelData, excelColumn: string) => {
-        // Si el campo es un número, le damos formato
-        if (rowData[excelColumn] && (rowData[excelColumn] !== 'Puntos')) {
-            return  <div className="w-full text-right font-bold">
-                        { rowData[excelColumn] || 0 }
-                    </div>;
-        } else {
-            // Etiqueta de fecha vacía o no válida
-            return  <div className="w-full text-right font-bold">
-                        { rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '' }
-                    </div>;
-        }
-    };
-
-    // Template para filas de estudiantes (rowIndex > 0)
-    const renderStudentRowTemplate = (rowData: ColumnExcelData, excelColumn: string, rowIndex: number) => {
-        // Verificar si es la primera columna (ID) para mostrar botones de acción
-        if (idColumnName === excelColumn) {
-            return columnContentValueIDTemplate(rowData, { field: excelColumn, rowIndex });
-        } else if (excelColumn.match(/^(.+)@(.+)$/)) {
-            return columnContentValueMailTemplate(rowData, { field: excelColumn, rowIndex });
-        } else if (rowData[excelColumn] && !isNaN(Number(rowData[excelColumn]))) {
-            return <div className="w-full text-right">
-                        { 
-                            new Intl.NumberFormat('en-US', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                            }).format(
-                                parseFloat((rowData[excelColumn] || '0') + '')
-                            )
-                        }
-                    </div>
-        } else {
-            return  <div className="w-full text-left font-semibold">
-                        { rowData[excelColumn] || '' }
-                    </div>;
-        }
-    };
-    
-    const columnContentValueIDTemplate = (rowData: ColumnExcelData, props: { field: string, rowIndex: number }) => {
+    const columnContentValueIdentifierTemplate = (rowData: ColumnExcelData, props: { field: string, rowIndex: number }) => {
         return (
             <div className="w-full flex justify-center justify-end gap-2 text-right font-bold">
                 <span
@@ -210,6 +233,14 @@ const AlumnadoCatalogo = () => {
                     icon="pi pi-trash"
                     className="p-button-rounded p-button-secondary"
                     style={{ backgroundColor: 'red', fontWeight: 'bolder', color: 'lightgray' }}
+                    onClick={() => {
+                        // Obtener nombre del estudiante si existe (buscar en columnas comunes de nombre)
+                        const possibleNameFields = ['NOMBRE', 'Nombre', 'nombre', 'NOMBRES', 'Nombres', 'nombres'];
+                        const studentName = possibleNameFields.find(field => rowData[field])
+                            ? String(rowData[possibleNameFields.find(field => rowData[field]) || ''])
+                            : undefined;
+                        showDeleteConfirmation(rowData[props.field], studentName);
+                    }}
                     tooltip="Eliminar Alumno"
                 />
             </div>
@@ -217,8 +248,8 @@ const AlumnadoCatalogo = () => {
     };
     
     const columnContentValueMailTemplate = (rowData: ColumnExcelData, props: { field: string, rowIndex: number }) => {
-        if (rowData[props.field]) {
-            const email = String(rowData[props.field]);
+        if (rowData[props.field] || rowData[formatFieldName(props.field)]) {
+            const email = String(rowData[props.field] || rowData[formatFieldName(props.field)]);
             return (
                 <div className="p-inputgroup w-100" style={{ maxWidth: '280px' }}>
                     <Button
@@ -259,22 +290,6 @@ const AlumnadoCatalogo = () => {
             );
         } else {
             return null;
-        }
-    };
-    
-    const getRowClassName = (data: ColumnExcelData) => {
-        // Obtenemos el índice de la fila actual en los datos originales
-        const originalRowIndex = excelData.indexOf(data);
-        // La fila 0 es especial, mantener su estilo original
-        if (originalRowIndex === 0) {
-            return 'bg-blue-500 text-white font-bold special-row';
-        }
-        // Para las demás filas, aplicar colores intercalados basándose en el ID o posición
-        // Usamos el originalRowIndex para determinar el color
-        if ((originalRowIndex - 1) % 2 === 0) {
-            return 'bg-[#99b1d5] hover:bg-[#7789a5] hover:text-white transition-colors duration-200'; // Azul suave para filas pares
-        } else {
-            return 'bg-white hover:bg-[#7789a5] hover:text-white transition-colors duration-200'; // Blanco para filas impares
         }
     };
     
@@ -369,9 +384,9 @@ const AlumnadoCatalogo = () => {
                         {excelData.length > 0 &&
                             columnsToShow.map((col, index) => (
                                 <Column field={col} 
-                                        header={col}
+                                        header={formatColumnHeader(col)}
                                         key={`${col}-${index}`}
-                                        body={chooseBodyTemplate(col)} />
+                                        body={columnContentShowBodyTemplate(col)} />
                             ))
                         }
                         <Column 
@@ -404,6 +419,15 @@ const AlumnadoCatalogo = () => {
                     data={selectedData}
                     groupInfo={activeModal.groupInfo}
                     columnConfig={columnConfig}
+                />
+            )}
+
+            {deleteModal && (
+                <DeleteStudentModal
+                    visible={deleteModal.visible}
+                    onHide={() => setDeleteModal(null)}
+                    studentId={deleteModal.studentId}
+                    studentName={deleteModal.studentName}
                 />
             )}
             

@@ -28,7 +28,7 @@ const ConfiguracionHoja = () => {
 
   // Determinar si hay datos de Excel para mostrar o no el Menu
   const hasExcelData: boolean = (excelData).length > 0;
-
+  
   // Abstraer los datos de los estudiantes
   const studentsExcelData = excelData.length > 2 ? [...excelData].slice(2, excelData.length) : [];
   
@@ -399,13 +399,14 @@ const ConfiguracionHoja = () => {
             matrixExcelData[0].push(excelConfig.label || '');
             matrixExcelData[1].push(excelConfig.date || '');
             matrixExcelData[2].push(
-              (excelConfig.points == 0 || excelConfig.points)
+              (excelConfig.points == 0 || (excelConfig.points && (excelConfig.points > 0)))
                 ? excelConfig.points
                 : '');
             // Se crear un arreglo con los nombres de las columnas
             arrayHeaderFields.push(excelConfig.label || '');
           });
         });
+
         if (studentsExcelData && (studentsExcelData.length > 0) && (arrayHeaderFields.length > 0)) {
           studentsExcelData.forEach((rowData) => {
             // Se inserta una nueva fila

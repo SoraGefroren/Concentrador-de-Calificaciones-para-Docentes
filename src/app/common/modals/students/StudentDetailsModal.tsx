@@ -18,17 +18,50 @@ const StudentDetailsModal = ({ visible, onHide, dates, points, data, groupInfo, 
     if (!data || !groupInfo) return null;
 
     // Usar configuración dinámica del grupo seleccionado
-    const modalTitle = `Detalles - ${groupInfo.label}`;
-    const modalColor = groupInfo.color;
+    const modalTitle = groupInfo.label || 'Detalles';
+    const modalColor = groupInfo.color || '#374151';
     
     // Obtener las columnas específicas del grupo
     const groupColumns = groupInfo.columns.map(col => col.label);
 
-    // Obtener las columnas de la sección derecha (totales y calificaciones) dinámicamente
+    // Obtener las columnas de la sección izquierda y derecha
     const groupSectionConfig = getSectionsColumnsConfig(columnConfig);
+
+    // Obtener las columnas de la sección izquierda (apuntando al id estudiante)
+    const leftSectionFields = groupSectionConfig.left.flatMap(group =>
+        group.columns.map(col => col.label)
+    );
+
+    // La primera columna es siempre el ID (primera columna de la sección izquierda)
+    const idColumnName = leftSectionFields.length > 0 ? leftSectionFields.shift() : '';
+    
+    // Obtener las columnas de la sección derecha (totales y calificaciones) dinámicamente
     const rightSectionFields = groupSectionConfig.right.flatMap(group => 
         group.columns.map(col => col.label)
     );
+
+    // Generar subtítulo dinámico basado en los campos restantes de la sección izquierda
+    const generateSubtitle = () => {
+        if (leftSectionFields.length === 0) return '';
+        
+        const subtitleParts = leftSectionFields
+            .map(fieldName => {
+                const value = data[fieldName] || data[formatFieldName(fieldName)];
+                return value ? String(value).trim() : null;
+            })
+            .filter(Boolean); // Eliminar valores vacíos o null
+        
+        return subtitleParts.length > 0 ? `${subtitleParts.join(' ')} / ` : '';
+    };
+
+    // Filtrar las columnas específicas del grupo seleccionado
+    const groupSectionData = groupColumns.reduce((acc, columnLabel) => {
+        const value = data[columnLabel] || data[formatFieldName(columnLabel)];
+        if (value !== undefined) {
+            acc[columnLabel] = value;
+        }
+        return acc;
+    }, {} as ColumnExcelData);
 
     const renderSection = (fields: string[]) => (
         <div className="grid grid-cols-2 gap-4 mb-6">
@@ -50,24 +83,12 @@ const StudentDetailsModal = ({ visible, onHide, dates, points, data, groupInfo, 
             ))}
         </div>
     );
-
-    // Filtrar las columnas específicas del grupo seleccionado
-    const groupSectionData = groupColumns.reduce((acc, columnLabel) => {
-        const value = data[columnLabel] || data[formatFieldName(columnLabel)];
-        if (value !== undefined) {
-            acc[columnLabel] = value;
-        }
-        return acc;
-    }, {} as ColumnExcelData);
     
     const tableData = [
         { name: 'Fecha', ...dates },
         { name: 'Puntos', ...points },
         { name: 'Resultados', ...groupSectionData }
     ];
-
-    // Usar el color del grupo dinámicamente
-    const headerColor = modalColor || '#374151';
 
     return (
         <>
@@ -82,7 +103,7 @@ const StudentDetailsModal = ({ visible, onHide, dates, points, data, groupInfo, 
                         text-align: center !important;
                     }
                     .custom-dialog-header .p-dialog-header {
-                        background-color: ${headerColor} !important;
+                        background-color: ${modalColor} !important;
                         color: white !important;
                         border-radius: 6px 6px 0 0 !important;
                     }
@@ -103,10 +124,9 @@ const StudentDetailsModal = ({ visible, onHide, dates, points, data, groupInfo, 
             </style>
             <Dialog 
                 header={
-                    data['ID'] + ' - ' +
-                    modalTitle +
-                    (data['NOMBRE'] ? ` ${data['NOMBRE']}` : '') +
-                    (data['APELLIDO'] ? ` ${data['APELLIDO']}` : '')
+                    (idColumnName ? (data[idColumnName] + ' / ') : '') +
+                    generateSubtitle() +
+                    modalTitle
                 }
                 visible={visible} 
                 onHide={onHide}

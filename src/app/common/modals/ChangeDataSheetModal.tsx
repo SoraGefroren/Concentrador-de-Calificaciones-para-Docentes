@@ -11,7 +11,7 @@ import { Toast } from 'primereact/toast';
 import { useRef } from 'react';
 import FileUploadEvent from '../../features/adds/FileUploadEvent';
 import CloseFileModal from './CloseFileModal';
-import { clearLocalStorage, updatedLocalStorage } from '../utils/clusterOfMethods';
+import { updatedLocalStorage, clearAllDataCompletely } from '../utils/clusterOfMethods';
 
 interface ChangeDataSheetModalProps {
   visible: boolean;
@@ -25,9 +25,14 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
   const [loading, setLoading] = useState(false);
   const [closeFileModalVisible, setCloseFileModalVisible] = useState(false);
 
+  const handleCloseFile = () => {
+    onHide(); // Cerrar la modal principal primero
+    setCloseFileModalVisible(true); // Abrir la modal de cerrar archivo
+  };
+
   const handleCreateNew = () => {
-    // Limpiar cualquier configuración previa
-    clearLocalStorage();
+    // Limpiar completamente todos los datos (localStorage + contexto React)
+    clearAllDataCompletely(context);
     // Mostrar mensaje informativo
     toast.current?.show({
       severity: 'info',
@@ -56,7 +61,7 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
         onHide();
         navigate('/');
     } else {
-      console.error('Error al cargar el archivo:', error);
+      console.error('Error al cargar el archivo');
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
@@ -70,11 +75,7 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
     setLoading(false);
   };
 
-  const handleCloseFile = () => {
-    onHide(); // Cerrar la modal principal primero
-    setCloseFileModalVisible(true); // Abrir la modal de cerrar archivo
-  };
-
+  // Definir el footer de la modal
   const modalFooter = (
     <div className="flex justify-between">
       <div className="flex gap-2">
@@ -152,7 +153,7 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
                   uploadHandler={handleUploadFile}
                   auto
                   chooseLabel="Reemplazar con nuevo archivo Excel"
-                  className="w-full"
+                  className="block w-full"
                 />
                 <p className="text-xs text-gray-500 mt-2 text-center">
                   Formatos soportados: .xlsx, .xls (máximo 1MB)

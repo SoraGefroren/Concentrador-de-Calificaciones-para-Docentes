@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
+import { clearLocalStorage } from '../utils/clusterOfMethods';
 
 export const typeInfoGroup = 'info';
 export const typePeriodGroup = 'period';
@@ -110,7 +111,7 @@ export const useExcelData = () => {
                                     currentColumn = {
                                         id: '',
                                         date: '',
-                                        points: 0,
+                                        points: null,
                                         label: ((rowExcelHeader.length > 1 ? rowExcelHeader[3] : '') || '').toString(),
                                     };
                                     // Leer encabezados de datos de columna: ['', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable'] o ['', '', '', 'Columna', 'Fecha', 'Puntos']
@@ -125,8 +126,10 @@ export const useExcelData = () => {
                                                 const rowColumnExcel = configData[i];
                                                 currentColumn.id = rowColumnExcel[3] ? rowColumnExcel[3].toString() : '';
                                                 currentColumn.date = rowColumnExcel[4] ? rowColumnExcel[4].toString() : '';
-                                                currentColumn.points = parseInt(rowColumnExcel[5] ? rowColumnExcel[5].toString() : '0');
-                                                
+                                                currentColumn.points = rowColumnExcel[5] || rowColumnExcel[5] == '0'
+                                                    ? parseInt(rowColumnExcel[5] ? rowColumnExcel[5].toString() : '0')
+                                                    : null;
+
                                                 // Manejar el campo isEditable si existe
                                                 if (rowExcelConfig[6] === 'Editable' && rowColumnExcel[6]) {
                                                     const editableValue = rowColumnExcel[6].toString().toUpperCase();
@@ -278,10 +281,21 @@ export const useExcelData = () => {
         }
     };
 
+    // Función para reiniciar/limpiar todos los datos
+    const clearAllData = () => {
+        // También limpiar localStorage
+        clearLocalStorage();
+        // Reiniciar estados
+        setColumnConfig([]);
+        setExcelData([]);
+        setError(null);
+    };
+
     return {
         error,
         excelData,
         columnConfig,
-        loadExcelFromFile
+        loadExcelFromFile,
+        clearAllData
     };
 };

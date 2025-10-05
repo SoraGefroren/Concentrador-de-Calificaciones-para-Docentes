@@ -4,10 +4,6 @@ import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import './App.css'
 
-import Home from './app/pages/Home.tsx'
-import ResumenDeDatos from './app/pages/ResumenDeDatos.tsx'
-import TotalesAlcanzados from './app/pages/TotalesAlcanzados.tsx'
-
 import CargarHojaDeDatos from './app/pages/CargarHojaDeDatos.tsx'
 import ConfiguracionHoja from './app/pages/ConfiguracionHoja.tsx';
 import AlumnadoCatalogo from './app/pages/AlumnadoCatalogo.tsx'

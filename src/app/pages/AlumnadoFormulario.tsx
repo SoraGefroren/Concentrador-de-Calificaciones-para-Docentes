@@ -227,6 +227,7 @@ const AlumnadoFormulario = () => {
 
             // Construir encabezado de la primera hoja
             const matrixExcelData: (string | number)[][] = [[], [], []];
+
             columnConfig.forEach(groupConfig => {
                 // Se recorren las columnas que conforman al grupo
                 groupConfig.columns.forEach(excelConfig => {
@@ -234,7 +235,7 @@ const AlumnadoFormulario = () => {
                     matrixExcelData[0].push(excelConfig.label || '');
                     matrixExcelData[1].push(excelConfig.date || '');
                     matrixExcelData[2].push(
-                        (excelConfig.points == 0 || excelConfig.points)
+                        (excelConfig.points == 0 || (excelConfig.points && (excelConfig.points > 0)))
                             ? excelConfig.points
                             : ''
                     );

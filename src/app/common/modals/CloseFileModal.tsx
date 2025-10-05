@@ -4,7 +4,8 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import { Button } from 'primereact/button';
 import { Toast } from 'primereact/toast';
 import { useState, useRef } from 'react';
-import { clearLocalStorage } from '../utils/clusterOfMethods';
+import { clearAllDataCompletely } from '../utils/clusterOfMethods';
+import { useExcelContext } from '../contexts/ExcelContext';
 
 interface CloseFileModalProps {
   visible: boolean;
@@ -14,12 +15,13 @@ interface CloseFileModalProps {
 const CloseFileModal = ({ visible, onHide }: CloseFileModalProps) => {
   const navigate = useNavigate();
   const toast = useRef<Toast>(null);
+  const context = useExcelContext();
   const [isClosing, setIsClosing] = useState(false);
 
   const handleCloseFile = () => {
     setIsClosing(true);
-    // Limpiar cualquier configuración previa
-    clearLocalStorage();
+    // Limpiar completamente todos los datos (localStorage + contexto React)
+    clearAllDataCompletely(context);
     // Mostrar mensaje de éxito
     toast.current?.show({
       severity: 'success',

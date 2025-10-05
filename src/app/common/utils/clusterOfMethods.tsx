@@ -109,6 +109,17 @@ export const clearLocalStorage = (): void => {
     localStorage.removeItem('columnConfig');
 };
 
+// Función para limpiar completamente los datos incluyendo el contexto React
+export const clearAllDataCompletely = (context: ReturnType<typeof useExcelData> | undefined): void => {
+    // Limpiar el estado del contexto React si está disponible
+    if (context?.clearAllData) {
+      context.clearAllData();
+    } else {
+      // Limpiar localStorage primero
+      clearLocalStorage();
+    }
+};
+
 // Funciones de utilidad para limpiar configuraciones previas
 export const updatedLocalStorage = async (context: ReturnType<typeof useExcelData> | undefined, event: FileUploadEvent): Promise<boolean> => {
     let processIsOk = true;
@@ -127,8 +138,8 @@ export const updatedLocalStorage = async (context: ReturnType<typeof useExcelDat
       }
     } catch (error) {
       console.error('Error al procesar el archivo:', error);
+      clearAllDataCompletely(context);
       processIsOk = false;
-      clearLocalStorage();
     }
     return processIsOk;
 };
@@ -164,23 +175,6 @@ export const formatDateValue = (value: string | number | null | undefined): stri
 
 // Función para formatear los headers de las columnas (igual que en AlumnadoCatalogo y StudentDetailsModal)
 export const formatColumnHeader = (columnName: string): string => {
-    // Casos especiales para ciertos campos
-    const specialCases: { [key: string]: string } = {
-        'ID': 'ID',
-        'CORREO.ELECTONICO ': 'Correo Electrónico',
-        'CORREO.ELECTONICO': 'Correo Electrónico',
-        'SUMA.PORCENTAJE.ACTIVIDADES': 'Suma % Actividades',
-        'TOTAL.ALCANZADO.DE.PORCENTAJE.ACTIVIDADES': 'Total Alcanzado % Actividades',
-        'PARTICIPACIÓN': 'Participación',
-        'TOTAL.ALCANZADO': 'Total Alcanzado',
-        'CALIFICACION': 'Calificación'
-    };
-
-    // Si hay un caso especial definido, usarlo
-    if (specialCases[columnName]) {
-        return specialCases[columnName];
-    }
-
     // Patrón: texto-dd-mmm-yy (ejemplo: "Conceptos Basicos Probabilidad-05-nov-21")
     const dateMatch = columnName.match(/^(.+)-(\d{1,2})-([a-z]{3})-(\d{2})$/i);
     // Si se detecto y formateo una fecha al final del texto, entonces...
