@@ -1,65 +1,83 @@
 import FileUploadEvent from "../../features/adds/FileUploadEvent";
-import { DEFAULT_ACTIVITY_TEMPLATES, DEFAULT_FIXED_LEFT_HEADERS_INFO, DEFAULT_FIXED_RIGHT_HEADERS_COLS, DEFAULT_FIXED_RIGHT_HEADERS_INFO } from "../../features/configuration/types/HeaderConfiguration";
+import { DEFAULT_ACTIVITY_TEMPLATES, DEFAULT_FIXED_LEFT_HEADERS_COLS, DEFAULT_FIXED_LEFT_HEADERS_INFO, DEFAULT_FIXED_RIGHT_HEADERS_COLS, DEFAULT_FIXED_RIGHT_HEADERS_INFO } from "../../features/configuration/types/HeaderConfiguration";
 import { ColumnExcelData, useExcelData } from "../hooks/useExcelData";
-import { ColumnExcelConfig, ColumnGroupConfig, typeColumnsGroup, typeInfoGroup, typePeriodGroup } from "../hooks/useExcelData";
+import { ColumnExcelConfig, ColumnGroupConfig, typeColumnsGroup, typeInfoGroup, typePeriodGroup, TipoValor } from "../hooks/useExcelData";
 
 // Función para generar una configuración de columnas por defecto
 export const getDefaultColumnConfig = (): ColumnGroupConfig[] => {
     // Preparar arreglo para la configuración por defecto
     const aryDefaultConfig: ColumnGroupConfig[] = [];
 
-    // Colores para los períodos
-    const periodColors = {
-      black: '#151c25ff',
-      green: '#059669', 
-      purple: '#7c3aed'
-    };
-
     // 1. Columnas Fijas Izquierdas
-    const leftFixedColumns: ColumnExcelConfig[] = DEFAULT_FIXED_LEFT_HEADERS_INFO
-      .map((header) => ({
+    const leftFixedColumnsInfo: ColumnExcelConfig[] = DEFAULT_FIXED_LEFT_HEADERS_INFO
+      .map((header: any) => ({
         id: '',
         label: header.name,
         date: header.date || null,
         points: header.points || null,
-        isEditable: header.editable || false  // Las columnas de información generalmente no son editables
+        isEditable: header.editable || false,  // Las columnas de información generalmente no son editables
+        tipoValor: (header.tipoValor as TipoValor) || null,
+        formula: header.formula || null
       }));
     aryDefaultConfig.push({
       id: '',
       color: '',
       label: 'Información del Estudiante',
       type: typeInfoGroup,
-      columns: leftFixedColumns
+      columns: leftFixedColumnsInfo
     });
 
-    // 2. Períodos de Actividades (black, green, purple)
+    // 2. Columnas Fijas Izquierdas
+    const leftFixedColumnsCols: ColumnExcelConfig[] = DEFAULT_FIXED_LEFT_HEADERS_COLS
+      .map((header: any) => ({
+        id: '',
+        label: header.name,
+        date: header.date || null,
+        points: header.points || null,
+        isEditable: header.editable || false,  // Las columnas de información generalmente no son editables
+        tipoValor: (header.tipoValor as TipoValor) || null,
+        formula: header.formula || null
+      }));
+    aryDefaultConfig.push({
+      id: '',
+      color: '',
+      label: 'Información del Estudiante',
+      type: typeColumnsGroup,
+      columns: leftFixedColumnsCols
+    });
+
+    // 3. Períodos de Actividades (black, green, purple)
     Object.entries(DEFAULT_ACTIVITY_TEMPLATES)
       .forEach(([colorKey, template]) => {
         const periodColumns: ColumnExcelConfig[] = template.activities
-          .map((activity) => ({
+          .map((activity: any) => ({
             id: '',
             label: activity.name,
             date: activity.date || null,
             points: activity.points || null,
-            isEditable: activity.editable || false  // Las columnas de actividades son editables por defecto
+            isEditable: activity.editable || false,  // Las columnas de actividades son editables por defecto
+            tipoValor: (activity.tipoValor as TipoValor) || null,
+            formula: activity.formula || null
           }));
         aryDefaultConfig.push({
           id: '',
-          color: periodColors[colorKey as keyof typeof periodColors],
+          color: template.color || '',
           label: template.periodName,
           type: typePeriodGroup,
           columns: periodColumns
         });
       });
 
-    // 3. Columnas Fijas Derechas
+    // 4. Columnas Fijas Derechas
     const rightFixedColumnsCols: ColumnExcelConfig[] = DEFAULT_FIXED_RIGHT_HEADERS_COLS
-      .map((header) => ({
+      .map((header: any) => ({
         id: '',
         label: header.name,
         date: header.date || null,
         points: header.points || null,
-        isEditable: header.editable || false
+        isEditable: header.editable || false,
+        tipoValor: (header.tipoValor as TipoValor) || null,
+        formula: header.formula || null
       }));
     aryDefaultConfig.push({
       id: '',
@@ -69,14 +87,16 @@ export const getDefaultColumnConfig = (): ColumnGroupConfig[] => {
       columns: rightFixedColumnsCols
     });
 
-    // 3. Columnas Fijas Derechas
+    // 5. Columnas Fijas Derechas Info
     const rightFixedColumnsInfo: ColumnExcelConfig[] = DEFAULT_FIXED_RIGHT_HEADERS_INFO
-      .map((header) => ({
+      .map((header: any) => ({
         id: '',
         label: header.name,
         date: header.date || null,
         points: header.points || null,
-        isEditable: header.editable || false
+        isEditable: header.editable || false,
+        tipoValor: (header.tipoValor as TipoValor) || null,
+        formula: header.formula || null
       }));
     aryDefaultConfig.push({
       id: '',
@@ -99,6 +119,82 @@ export const getExcelColumnName = (columnNumber: number): string => {
     columnNumber = Math.floor((columnNumber - 1) / 26);
   }
   return columnName;
+};
+
+// Funciones de utilidad para manejar fechas en formato DD-MMM-AA
+export const validateDateFormat = (dateString: string): boolean => {
+    if (!dateString) return true; // Permitir vacío
+    
+    const datePattern = /^\d{2}-[A-Z]{3}-\d{2}$/;
+    if (!datePattern.test(dateString.toUpperCase())) return false;
+    
+    // Validar que el mes sea válido
+    const parts = dateString.toUpperCase().split('-');
+    if (parts.length !== 3) return false;
+    
+    const day = parseInt(parts[0]);
+    const month = parts[1];
+    const year = parseInt(parts[2]);
+    
+    // Validar día (1-31)
+    if (day < 1 || day > 31) return false;
+    
+    // Validar año (00-99)
+    if (year < 0 || year > 99) return false;
+    
+    // Validar mes
+    const validMonths = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 
+                         'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+    if (!validMonths.includes(month)) return false;
+    
+    return true;
+};
+
+export const formatDateFromExcel = (dateString: string): string => {
+    if (!dateString) return '';
+    
+    // Si ya está en formato correcto, devolverlo
+    if (validateDateFormat(dateString)) return dateString;
+    
+    // Intentar parsear diferentes formatos
+    const monthsMap: { [key: string]: string } = {
+        'ENE': 'ENE', 'ENERO': 'ENE', 'JANUARY': 'ENE', 'JAN': 'ENE', '01': 'ENE', '1': 'ENE',
+        'FEB': 'FEB', 'FEBRERO': 'FEB', 'FEBRUARY': 'FEB', '02': 'FEB', '2': 'FEB',
+        'MAR': 'MAR', 'MARZO': 'MAR', 'MARCH': 'MAR', '03': 'MAR', '3': 'MAR',
+        'ABR': 'ABR', 'ABRIL': 'ABR', 'APRIL': 'ABR', 'APR': 'ABR', '04': 'ABR', '4': 'ABR',
+        'MAY': 'MAY', 'MAYO': 'MAY', '05': 'MAY', '5': 'MAY',
+        'JUN': 'JUN', 'JUNIO': 'JUN', 'JUNE': 'JUN', '06': 'JUN', '6': 'JUN',
+        'JUL': 'JUL', 'JULIO': 'JUL', 'JULY': 'JUL', '07': 'JUL', '7': 'JUL',
+        'AGO': 'AGO', 'AGOSTO': 'AGO', 'AUGUST': 'AGO', 'AUG': 'AGO', '08': 'AGO', '8': 'AGO',
+        'SEP': 'SEP', 'SEPTIEMBRE': 'SEP', 'SEPTEMBER': 'SEP', '09': 'SEP', '9': 'SEP',
+        'OCT': 'OCT', 'OCTUBRE': 'OCT', 'OCTOBER': 'OCT', '10': 'OCT',
+        'NOV': 'NOV', 'NOVIEMBRE': 'NOV', 'NOVEMBER': 'NOV', '11': 'NOV',
+        'DIC': 'DIC', 'DICIEMBRE': 'DIC', 'DECEMBER': 'DIC', 'DEC': 'DIC', '12': 'DIC'
+    };
+    
+    let formatted = dateString.replace(/\s+/g, '').toUpperCase();
+    
+    // Si contiene "/" o "-", intentar parsear
+    if (formatted.includes('/') || formatted.includes('-')) {
+        const parts = formatted.split(/[/-]/);
+        
+        if (parts.length >= 2) {
+            const day = parts[0].padStart(2, '0');
+            let month = parts[1];
+            const year = parts[2] ? parts[2].slice(-2) : '';
+            
+            // Convertir mes si es numérico o nombre completo
+            if (monthsMap[month]) {
+                month = monthsMap[month];
+            }
+            
+            if (year && month.length === 3) {
+                formatted = `${day}-${month}-${year}`;
+            }
+        }
+    }
+    
+    return formatted;
 };
 
 // Funciones de utilidad para limpiar configuraciones previas

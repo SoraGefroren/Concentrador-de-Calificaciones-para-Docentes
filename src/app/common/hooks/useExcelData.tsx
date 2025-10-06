@@ -6,6 +6,9 @@ export const typeInfoGroup = 'info';
 export const typePeriodGroup = 'period';
 export const typeColumnsGroup = 'columns';
 
+// Tipos para el campo tipoValor
+export type TipoValor = 'Texto' | 'Número' | 'Email' | null;
+
 export interface ColumnExcelData {
     [key: string]: string | number;
 }
@@ -16,6 +19,8 @@ export interface ColumnExcelConfig {
     date: string | null;    // Fecha del grupo de columnas
     points: number | null;  // Puntos del grupo de columnas;
     isEditable?: boolean | null;   // Indica si la columna es editable
+    tipoValor?: TipoValor | null;  // Tipo de valor que acepta la columna
+    formula?: string | null;       // Tipo de fórmula o cálculo de la columna
     isNew?: boolean;        // Indica si la columna es nueva (no guardada aún)
 }
 

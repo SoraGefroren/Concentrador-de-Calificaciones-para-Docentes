@@ -1,7 +1,7 @@
 import Menu from '../common/Menu.tsx';
 import { useRef, useState } from 'react';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
-import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup} from '../common/hooks/useExcelData.tsx';
+import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup, TipoValor} from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
@@ -10,11 +10,12 @@ import { InputNumber } from 'primereact/inputnumber';
 import { ColorPicker } from 'primereact/colorpicker';
 import { Checkbox } from 'primereact/checkbox';
 import { DataTable } from 'primereact/datatable';
+import { Dropdown } from 'primereact/dropdown';
 import { useNavigate } from 'react-router-dom';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
-import { getDefaultColumnConfig, getExcelColumnName, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
+import { getDefaultColumnConfig, getExcelColumnName, getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel } from '../common/utils/clusterOfMethods.tsx';
 import * as XLSX from 'xlsx';
 
 const ConfiguracionHoja = () => {
@@ -96,6 +97,13 @@ const ConfiguracionHoja = () => {
   // Apuntador para manejar el tab Activo
   const [activeTab, setActiveTab] = useState(0);
   
+  // Opciones para los dropdowns
+  const tipoValorOptions = [
+    { label: 'Texto', value: 'Texto' },
+    { label: 'Número', value: 'Número' },
+    { label: 'Email', value: 'Email' }
+  ];
+  
   /*
    * FUNCIONES DE APOYO A LA VISUALIZACIÓN
    */
@@ -118,6 +126,8 @@ const ConfiguracionHoja = () => {
       date: string | null;
       points: number | null;
       editable: boolean | null;
+      tipoValor: TipoValor | null;
+      formula: string | null;
       category: string;
       detail: string;
     }> = [];
@@ -131,6 +141,8 @@ const ConfiguracionHoja = () => {
           date: excelConfig.date || '',
           points: excelConfig.points,
           editable: excelConfig.isEditable || false,
+          tipoValor: excelConfig.tipoValor || 'Texto',
+          formula: excelConfig.formula || null,
           category: groupConfig.type,
           detail: groupConfig.label,
         });
@@ -157,7 +169,9 @@ const ConfiguracionHoja = () => {
         label: `Actividad`,
         date: null,
         points: null,
-        isEditable: true
+        isEditable: true,
+        tipoValor: 'Número' as TipoValor,
+        formula: null
       }],
       isNew: true
     };
@@ -264,6 +278,8 @@ const ConfiguracionHoja = () => {
       date: null,
       points: null,
       isEditable: true,
+      tipoValor: (typeGroup === typePeriodGroup) ? 'Número' as TipoValor : 'Texto' as TipoValor,
+      formula: null,
       isNew: true
     };
     columnConfig[groupIndex].columns.push(newColumn);
@@ -315,7 +331,31 @@ const ConfiguracionHoja = () => {
   };
 
   // Función para actualizar una columna específica
-  const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number; isEditable?: boolean }) => {    
+  // Función especializada para manejar actualizaciones de fecha
+  // Formatos de entrada soportados:
+  // - "27/08/21", "27-08-21" -> "27-AGO-21"
+  // - "3/septiembre/21", "3-SEP-21" -> "03-SEP-21"  
+  // - "05/dic/21", "5-12-21" -> "05-DIC-21"
+  // - "27-agosto-2021" -> "27-AGO-21"
+  // - Formato final esperado: DD-MMM-AA (ej: "27-AGO-21")
+  const updateColumnDate = (groupId: string, columnId: string, newDate: string) => {
+    const formattedDate = formatDateFromExcel(newDate);
+    
+    // Solo validar el formato final si hay contenido completo
+    if (formattedDate && formattedDate.length >= 9 && !validateDateFormat(formattedDate)) {
+      toast.current?.show({
+        severity: 'warn',
+        summary: 'Formato de fecha incorrecto',
+        detail: 'Use el formato DD-MMM-AA (ej: 27-AGO-21)',
+        life: 3000
+      });
+      return;
+    }
+    
+    updateColumnFromGroup(groupId, columnId, { date: formattedDate });
+  };
+
+  const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number; isEditable?: boolean; tipoValor?: TipoValor }) => {
       const updatedConfig = columnConfig.map(group => {
         if (group.id === groupId) {
           const updatedColumns = group.columns.map(column =>
@@ -810,12 +850,39 @@ const ConfiguracionHoja = () => {
                                 
                                   <div>
                                     <label className="block text-xs text-gray-600 mb-1">Fecha</label>
-                                    <InputText
-                                      value={excelConfig.date || ''}
-                                      onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { date: e.target.value })}
-                                      className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
-                                      placeholder="DD-MMM-AA"
-                                    />
+                                    <div className="relative">
+                                      <InputText
+                                        value={excelConfig.date || ''}
+                                        onChange={(e) => updateColumnDate(groupConfig.id, excelConfig.id, e.target.value)}
+                                        className={`w-full text-sm bg-white rounded border focus:ring-2 p-2 pr-8 ${
+                                          excelConfig.date 
+                                            ? validateDateFormat(excelConfig.date)
+                                              ? 'border-green-300 focus:border-green-500 focus:ring-green-200'
+                                              : 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                                            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
+                                        }`}
+                                        placeholder="27-AGO-21"
+                                        maxLength={15}
+                                        tooltip="Formatos válidos: 27-AGO-21, 27/08/21, 27 agosto 21, 27ago21. Se formateará automáticamente."
+                                      />
+                                      {excelConfig.date && (
+                                        <span className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${
+                                          validateDateFormat(excelConfig.date) ? 'text-green-500' : 'text-red-500'
+                                        }`}>
+                                          {validateDateFormat(excelConfig.date) ? '✓' : '⚠'}
+                                        </span>
+                                      )}
+                                    </div>
+                                    {excelConfig.date && !validateDateFormat(excelConfig.date) && (
+                                      <small className="text-red-500 text-xs mt-1 block">
+                                        Formato esperado: DD-MMM-AA (ej: 27-AGO-21)
+                                      </small>
+                                    )}
+                                    {excelConfig.date && validateDateFormat(excelConfig.date) && (
+                                      <small className="text-green-600 text-xs mt-1 block">
+                                        ✓ Formato correcto
+                                      </small>
+                                    )}
                                   </div>
                                   
                                   <div>
@@ -826,6 +893,17 @@ const ConfiguracionHoja = () => {
                                       className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
                                       min={0}
                                       max={100}
+                                    />
+                                  </div>
+                                  
+                                  <div>
+                                    <label className="block text-xs text-gray-600 mb-1">Tipo de Valor</label>
+                                    <Dropdown
+                                      value={excelConfig.tipoValor || 'Texto'}
+                                      options={tipoValorOptions}
+                                      onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { tipoValor: e.value as TipoValor })}
+                                      className="w-full text-sm"
+                                      placeholder="Seleccionar tipo"
                                     />
                                   </div>
                                   
@@ -903,7 +981,7 @@ const ConfiguracionHoja = () => {
                           </div>
 
                           {/* Campos en grid responsivo */}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                             <div>
                               <label className="block text-xs text-gray-600 mb-1">Nombre</label>
                               <InputText
@@ -912,6 +990,18 @@ const ConfiguracionHoja = () => {
                                 className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
                               />
                             </div>
+                            
+                            <div>
+                              <label className="block text-xs text-gray-600 mb-1">Tipo de Valor</label>
+                              <Dropdown
+                                value={excelConfig.tipoValor || 'Texto'}
+                                options={tipoValorOptions}
+                                onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { tipoValor: e.value as TipoValor })}
+                                className="w-full text-sm"
+                                placeholder="Seleccionar tipo"
+                              />
+                            </div>
+                            
                             
                             <div className="flex items-center justify-center">
                               <div className="text-center">
@@ -978,8 +1068,8 @@ const ConfiguracionHoja = () => {
                             </div>
 
                             {/* Campos en grid responsivo */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              <div className="sm:col-span-2 lg:col-span-1">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                              <div>
                                 <label className="block text-xs text-gray-600 mb-1">Nombre</label>
                                 <InputText
                                   value={excelConfig.label}
@@ -1000,6 +1090,17 @@ const ConfiguracionHoja = () => {
                                   />
                                 </div>
                               )}
+                              
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Tipo de Valor</label>
+                                <Dropdown
+                                  value={excelConfig.tipoValor || 'texto'}
+                                  options={tipoValorOptions}
+                                  onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { tipoValor: e.value as TipoValor })}
+                                  className="w-full text-sm"
+                                  placeholder="Seleccionar tipo"
+                                />
+                              </div>
                               
                               <div className="flex items-center justify-center">
                                 <div className="text-center">
@@ -1078,13 +1179,35 @@ const ConfiguracionHoja = () => {
                     )}
                   />
                   <Column 
+                    field="tipoValor" 
+                    header="Tipo Valor" 
+                    style={{ width: '100px', textAlign: 'center' }}
+                    body={(rowData) => (
+                      <span className={`px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800`}>
+                        {(rowData.tipoValor || 'texto').toUpperCase()}
+                      </span>
+                    )}
+                  />
+                  <Column 
+                    field="formula" 
+                    header="Fórmula" 
+                    style={{ width: '120px', textAlign: 'center' }}
+                    body={(rowData) => (
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        rowData.formula ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {rowData.formula ? rowData.formula.toUpperCase() : 'NINGUNA'}
+                      </span>
+                    )}
+                  />
+                  <Column 
                     field="editable" 
                     header="Editable" 
                     style={{ width: '80px', textAlign: 'center' }}
                     body={(rowData) => (
                       <div className="flex justify-center">
                         <Checkbox
-                          checked={rowData.isEditable}
+                          checked={rowData.editable}
                           disabled={true}
                           className="cursor-not-allowed"
                         />

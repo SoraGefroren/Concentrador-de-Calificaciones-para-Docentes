@@ -7,7 +7,7 @@ import { InputText } from 'primereact/inputtext';
 import { InputNumber } from 'primereact/inputnumber';
 import { useState, useEffect, useRef } from 'react';
 import { Toast } from 'primereact/toast';
-import type { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig } from '../common/hooks/useExcelData';
+import type { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, TipoValor } from '../common/hooks/useExcelData';
 import { formatFieldName, formatColumnHeader, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
 import * as XLSX from 'xlsx';
 
@@ -372,9 +372,9 @@ const AlumnadoFormulario = () => {
         }
     };
     
-    const renderEditableField = (field: string, value: FormFieldValue, date: FormFieldValue, point: FormFieldValue): JSX.Element => {
+    const renderEditableField = (field: string, value: FormFieldValue, date: FormFieldValue, point: FormFieldValue, tipoValor?: TipoValor): JSX.Element => {
         // En modo vista, mostrar solo lectura
-        if (typeof value === 'number') {
+        if (typeof value === 'number' || tipoValor === 'Número') {
             if (date || point) {
                 return (
                     <div className="p-inputgroup flex-1">
@@ -407,36 +407,39 @@ const AlumnadoFormulario = () => {
                 );
             }
         } else {
+            // Determinar propiedades del input según tipoValor
+            const inputProps: any = {
+                value: value?.toString() ?? '',
+                tooltip: date ? `${date}` : '',
+                onChange: (e: any) => handleInputChange(field, e.target.value),
+                className: "w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+            };
+
+            // Agregar validación según tipoValor
+            if (tipoValor === 'Email') {
+                inputProps.type = 'email';
+                inputProps.placeholder = 'correo@ejemplo.com';
+            }
+
             if (date || point) {
                 return (
                     <div className="p-inputgroup flex-1">
-                        <InputText
-                            value={value?.toString() ?? ''}
-                            tooltip={date ? `${date}` : ''}
-                            onChange={(e) => handleInputChange(field, e.target.value)}
-                            className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                        />
+                        <InputText {...inputProps} />
                         <span className="p-inputgroup-addon">
                             {point ? `/${point}` : ''}
                         </span>
                     </div>
                 );
             } else {
-                return (
-                    <InputText
-                        value={value?.toString() ?? ''}
-                        onChange={(e) => handleInputChange(field, e.target.value)}
-                        className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
-                    />
-                );
+                return <InputText {...inputProps} />;
             }
         }
     };
 
-    const renderReadOnlyField = (_field: string, value: FormFieldValue, date: FormFieldValue, point: FormFieldValue) => {
+    const renderReadOnlyField = (_field: string, value: FormFieldValue, date: FormFieldValue, point: FormFieldValue, tipoValor?: TipoValor) => {
         // Campo de solo lectura - mostrar valor formateado
         return (
-            <div className="p-2 bg-gray-50 rounded border border-gray-200 min-h-[38px] flex items-center">
+            <div className={`p-2 rounded border min-h-[38px] flex items-center ${'bg-gray-50 border-gray-200'}`}>
                 {typeof value === 'number' 
                     ? new Intl.NumberFormat('es-MX', {
                         minimumFractionDigits: 2,
@@ -497,7 +500,8 @@ const AlumnadoFormulario = () => {
                                         ((formPoints && (formPoints[key] || formPoints[formatFieldName(key)]))
                                             ? (formPoints[key] || formPoints[formatFieldName(key)] || '')
                                             : ''
-                                        )
+                                        ),
+                                        excelConfig.tipoValor
                                     )
                                     : renderReadOnlyField(key,
                                         ((formDatas && (formDatas[key] || formDatas[formatFieldName(key)]))
@@ -511,7 +515,8 @@ const AlumnadoFormulario = () => {
                                         ((formPoints && (formPoints[key] || formPoints[formatFieldName(key)]))
                                             ? (formPoints[key] || formPoints[formatFieldName(key)] || '')
                                             : ''
-                                        )
+                                        ),
+                                        excelConfig.tipoValor
                                     )
                             }
                         </div>
@@ -568,21 +573,23 @@ const AlumnadoFormulario = () => {
                                             ((formPoints && (formPoints[key] || formPoints[formatFieldName(key)]))
                                                 ? (formPoints[key] || formPoints[formatFieldName(key)] || '')
                                                 : ''
-                                            )
+                                            ),
+                                            excelConfig.tipoValor
                                         )
                                         : renderReadOnlyField(key,
                                             ((formDatas && (formDatas[key] || formDatas[formatFieldName(key)]))
                                                 ? (formDatas[key] || formDatas[formatFieldName(key)] || '')
                                                 : ''
                                             ),
-                                            ((formDates && (formDates[key] || formDates[formatFieldName(key)]))
-                                                ? (formDates[key] || formDates[formatFieldName(key)] || '')
+                                            ((formDates && (formDates[key] || formDatas[formatFieldName(key)]))
+                                                ? (formDates[key] || formDatas[formatFieldName(key)] || '')
                                                 : ''
                                             ),
                                             ((formPoints && (formPoints[key] || formPoints[formatFieldName(key)]))
                                                 ? (formPoints[key] || formPoints[formatFieldName(key)] || '')
                                                 : ''
-                                            )
+                                            ),
+                                            excelConfig.tipoValor
                                         )
                                 }
                             </div>
