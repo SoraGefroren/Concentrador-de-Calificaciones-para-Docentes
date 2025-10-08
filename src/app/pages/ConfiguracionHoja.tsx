@@ -100,8 +100,8 @@ const ConfiguracionHoja = () => {
   // Opciones para los dropdowns
   const tipoValorOptions = [
     { label: 'Texto', value: 'Texto' },
-    { label: 'Número', value: 'Número' },
-    { label: 'Email', value: 'Email' }
+    { label: 'Email', value: 'Email' },
+    { label: 'Número', value: 'Número' }
   ];
   
   /*
@@ -355,7 +355,7 @@ const ConfiguracionHoja = () => {
     updateColumnFromGroup(groupId, columnId, { date: formattedDate });
   };
 
-  const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number; isEditable?: boolean; tipoValor?: TipoValor }) => {
+  const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number; isEditable?: boolean; tipoValor?: TipoValor, formula?: string }) => {
       const updatedConfig = columnConfig.map(group => {
         if (group.id === groupId) {
           const updatedColumns = group.columns.map(column =>
@@ -918,6 +918,21 @@ const ConfiguracionHoja = () => {
                                       />
                                     </div>
                                   </div>
+
+                                  
+                                  <div>
+                                    <label className="block text-xs text-gray-600 mb-1">Formula</label>
+                                    <InputText
+                                      value={excelConfig.formula || ''}
+                                      onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
+                                      className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
+                                      disabled={excelConfig.isEditable === true}
+                                      placeholder="Formula (si no es editable)"
+                                      tooltip="Formula para calcular el valor de la columna. Solo si no es editable."
+                                      maxLength={100}
+                                    />
+                                  </div>
+
                                 </div>
                               </div>
                             );

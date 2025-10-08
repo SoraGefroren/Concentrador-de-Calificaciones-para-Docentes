@@ -7,7 +7,7 @@ export const typePeriodGroup = 'period';
 export const typeColumnsGroup = 'columns';
 
 // Tipos para el campo tipoValor
-export type TipoValor = 'Texto' | 'Número' | 'Email' | null;
+export type TipoValor = 'Texto' | 'Email' | 'Número' | null;
 
 export interface ColumnExcelData {
     [key: string]: string | number;
