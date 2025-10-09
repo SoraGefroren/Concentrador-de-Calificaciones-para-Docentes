@@ -890,7 +890,8 @@ const ConfiguracionHoja = () => {
                                     <InputNumber
                                       value={excelConfig.points}
                                       onValueChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: e.value || 0 })}
-                                      className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
+                                      className="w-full"
+                                      inputClassName="w-full text-right bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
                                       min={0}
                                       max={100}
                                     />
@@ -902,7 +903,7 @@ const ConfiguracionHoja = () => {
                                       value={excelConfig.tipoValor || 'Texto'}
                                       options={tipoValorOptions}
                                       onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { tipoValor: e.value as TipoValor })}
-                                      className="w-full text-sm"
+                                      className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                                       placeholder="Seleccionar tipo"
                                     />
                                   </div>
@@ -913,7 +914,7 @@ const ConfiguracionHoja = () => {
                                       <Checkbox
                                         checked={excelConfig.isEditable ?? true}
                                         onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { isEditable: e.checked })}
-                                        className="mt-1"
+                                        className="mt-1 rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                                         tooltip="Permite editar esta columna en el catálogo de alumnos"
                                       />
                                     </div>
@@ -1012,7 +1013,7 @@ const ConfiguracionHoja = () => {
                                 value={excelConfig.tipoValor || 'Texto'}
                                 options={tipoValorOptions}
                                 onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { tipoValor: e.value as TipoValor })}
-                                className="w-full text-sm"
+                                className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                                 placeholder="Seleccionar tipo"
                               />
                             </div>
@@ -1024,7 +1025,7 @@ const ConfiguracionHoja = () => {
                                 <Checkbox
                                   checked={excelConfig.isEditable ?? true}
                                   onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { isEditable: e.checked })}
-                                  className="mt-1"
+                                  className="mt-1 rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                                   tooltip="Permite editar esta columna en el catálogo de alumnos"
                                 />
                               </div>
@@ -1099,7 +1100,8 @@ const ConfiguracionHoja = () => {
                                   <InputNumber
                                     value={excelConfig.points}
                                     onValueChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { points: e.value || 0 })}
-                                    className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
+                                    className="w-full"
+                                    inputClassName="w-full text-right bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
                                     min={0}
                                     max={100}
                                   />
@@ -1112,7 +1114,7 @@ const ConfiguracionHoja = () => {
                                   value={excelConfig.tipoValor || 'texto'}
                                   options={tipoValorOptions}
                                   onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { tipoValor: e.value as TipoValor })}
-                                  className="w-full text-sm"
+                                  className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                                   placeholder="Seleccionar tipo"
                                 />
                               </div>
@@ -1123,10 +1125,23 @@ const ConfiguracionHoja = () => {
                                   <Checkbox
                                     checked={excelConfig.isEditable ?? true}
                                     onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { isEditable: e.checked })}
-                                    className="mt-1"
+                                    className="mt-1 rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                                     tooltip="Permite editar esta columna en el catálogo de alumnos"
                                   />
                                 </div>
+                              </div>
+                              
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Formula</label>
+                                <InputText
+                                  value={excelConfig.formula || ''}
+                                  onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
+                                  className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
+                                  disabled={excelConfig.isEditable === true}
+                                  placeholder="Formula (si no es editable)"
+                                  tooltip="Formula para calcular el valor de la columna. Solo si no es editable."
+                                  maxLength={100}
+                                />
                               </div>
                             </div>
                           </div>

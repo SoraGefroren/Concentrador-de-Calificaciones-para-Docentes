@@ -385,7 +385,8 @@ const AlumnadoFormulario = () => {
                             mode="decimal"
                             minFractionDigits={2}
                             maxFractionDigits={2}
-                            className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                            className="w-full"
+                            inputClassName="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                             locale="es-MX"
                         />
                         <span className="p-inputgroup-addon">
@@ -401,7 +402,8 @@ const AlumnadoFormulario = () => {
                         mode="decimal"
                         minFractionDigits={2}
                         maxFractionDigits={2}
-                        className="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
+                        className="w-full"
+                        inputClassName="w-full bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-1"
                         locale="es-MX"
                     />
                 );
