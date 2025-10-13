@@ -16,7 +16,7 @@ import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { getDefaultColumnConfig, getExcelColumnName, getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel } from '../common/utils/clusterOfMethods.tsx';
-import { Dialog } from 'primereact/dialog';
+import FormulaEditor from '../common/components/FormulaEditor.tsx';
 import * as XLSX from 'xlsx';
 
 const ConfiguracionHoja = () => {
@@ -99,9 +99,8 @@ const ConfiguracionHoja = () => {
   const [activeTab, setActiveTab] = useState(0);
   
   // Estados para el editor de fórmulas
-  const [formulaParts, setFormulaParts] = useState<string[]>([]);
   const [showFormulaEditor, setShowFormulaEditor] = useState(false);
-  const [currentEditingColumn, setCurrentEditingColumn] = useState<{groupId: string, columnId: string, currentFormula: string} | null>(null);
+  const [currentEditingColumn, setCurrentEditingColumn] = useState<{groupId: string, columnId: string, currentFormula: string, currentLabel: string} | null>(null);
   
   // Opciones para los dropdowns
   const tipoValorOptions = [
@@ -131,79 +130,16 @@ const ConfiguracionHoja = () => {
    * FUNCIONES PARA EL EDITOR VISUAL DE FÓRMULAS
    */
 
-  // Convertir una fórmula string en array de partes
-  const parseFormulaToArray = (formula: string): string[] => {
-    if (!formula) return [];
-    
-    const parts: string[] = [];
-    let currentToken = '';
-    let inBrackets = false;
-    
-    for (let i = 0; i < formula.length; i++) {
-      const char = formula[i];
-      
-      if (char === '[') {
-        if (currentToken.trim()) {
-          parts.push(currentToken.trim());
-          currentToken = '';
-        }
-        inBrackets = true;
-        currentToken = char;
-      } else if (char === ']') {
-        currentToken += char;
-        inBrackets = false;
-        parts.push(currentToken);
-        currentToken = '';
-      } else if (!inBrackets && (char === '+' || char === '-' || char === '*' || char === '/' || char === '(' || char === ')')) {
-        if (currentToken.trim()) {
-          parts.push(currentToken.trim());
-          currentToken = '';
-        }
-        parts.push(char);
-      } else {
-        currentToken += char;
-      }
-    }
-    
-    if (currentToken.trim()) {
-      parts.push(currentToken.trim());
-    }
-    
-    return parts;
-  };
-
-  // Convertir array de partes a fórmula string
-  const arrayToFormulaString = (parts: string[]): string => {
-    return parts.join(' ').replace(/\s+/g, ' ').trim();
-  };
-
   // Abrir el editor de fórmulas
-  const openFormulaEditor = (groupId: string, columnId: string, currentFormula: string) => {
-    setCurrentEditingColumn({ groupId, columnId, currentFormula });
-    setFormulaParts(parseFormulaToArray(currentFormula || ''));
+  const openFormulaEditor = (groupId: string, columnId: string, currentFormula: string, currentLabel: string) => {
+    setCurrentEditingColumn({ groupId, columnId, currentFormula, currentLabel });
     setShowFormulaEditor(true);
   };
 
-  // Agregar una columna a la fórmula
-  const addColumnToFormula = (columnLabel: string) => {
-    setFormulaParts([...formulaParts, `[${columnLabel}]`]);
-  };
-
-  // Agregar un operador a la fórmula
-  const addOperatorToFormula = (operator: string) => {
-    setFormulaParts([...formulaParts, operator]);
-  };
-
-  // Agregar un número a la fórmula
-  const addNumberToFormula = (number: string) => {
-    setFormulaParts([...formulaParts, number]);
-  };
-
   // Guardar la fórmula editada
-  const saveFormula = () => {
+  const handleSaveFormula = (formulaString: string) => {
     if (!currentEditingColumn) return;
     
-    const formulaString = arrayToFormulaString(formulaParts);
     updateColumnFromGroup(
       currentEditingColumn.groupId, 
       currentEditingColumn.columnId, 
@@ -212,7 +148,6 @@ const ConfiguracionHoja = () => {
     
     setShowFormulaEditor(false);
     setCurrentEditingColumn(null);
-    setFormulaParts([]);
     
     toast.current?.show({
       severity: 'success',
@@ -223,10 +158,9 @@ const ConfiguracionHoja = () => {
   };
 
   // Cancelar edición de fórmula
-  const cancelFormulaEdit = () => {
+  const handleCancelFormulaEdit = () => {
     setShowFormulaEditor(false);
     setCurrentEditingColumn(null);
-    setFormulaParts([]);
   };
 
   // Validar que un label sea único
@@ -1166,7 +1100,7 @@ const ConfiguracionHoja = () => {
                                           icon="pi pi-pencil"
                                           className="p-button-sm bg-blue-500 hover:bg-blue-700 text-white"
                                           tooltip="Abrir editor visual de fórmulas"
-                                          onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '')}
+                                          onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '', excelConfig.label)}
                                         />
                                       )}
                                     </div>
@@ -1301,7 +1235,7 @@ const ConfiguracionHoja = () => {
                                     icon="pi pi-pencil"
                                     className="p-button-sm bg-blue-500 hover:bg-blue-700 text-white"
                                     tooltip="Abrir editor visual de fórmulas"
-                                    onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '')}
+                                    onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '', excelConfig.label)}
                                   />
                                 )}
                               </div>
@@ -1439,7 +1373,7 @@ const ConfiguracionHoja = () => {
                                       icon="pi pi-pencil"
                                       className="p-button-sm bg-blue-500 hover:bg-blue-700 text-white"
                                       tooltip="Abrir editor visual de fórmulas"
-                                      onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '')}
+                                      onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '', excelConfig.label)}
                                     />
                                   )}
                                 </div>
@@ -1688,164 +1622,15 @@ const ConfiguracionHoja = () => {
         </div>
       </div>
 
-      {/* Dialog del Editor Visual de Fórmulas */}
-      <Dialog
-        header="Editor Visual de Fórmulas"
+      {/* Componente del Editor Visual de Fórmulas */}
+      <FormulaEditor
         visible={showFormulaEditor}
-        onHide={cancelFormulaEdit}
-        style={{ width: '90vw', maxWidth: '800px' }}
-        modal
-        draggable={false}
-      >
-        <div className="space-y-4">
-          {/* Vista previa de la fórmula construida */}
-          <Card className="bg-gray-50">
-            <h4 className="font-semibold text-sm mb-2">Fórmula construida:</h4>
-            <div className="bg-white p-3 rounded border min-h-[60px] flex items-center">
-              {formulaParts.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {formulaParts.map((part, index) => (
-                    <div
-                      key={index}
-                      className={`px-3 py-1 rounded text-sm flex items-center gap-2 ${
-                        part.startsWith('[') && part.endsWith(']')
-                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                          : ['+', '-', '*', '/', '(', ')'].includes(part)
-                          ? 'bg-purple-100 text-purple-800 border border-purple-300'
-                          : 'bg-green-100 text-green-800 border border-green-300'
-                      }`}
-                    >
-                      <span>{part}</span>
-                      <button
-                        onClick={() => setFormulaParts(formulaParts.filter((_, i) => i !== index))}
-                        className="text-red-500 hover:text-red-700 font-bold text-xs"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-gray-400 text-sm">La fórmula aparecerá aquí...</span>
-              )}
-            </div>
-          </Card>
-
-          {/* Selector de columnas */}
-          <Card>
-            <h4 className="font-semibold text-sm mb-3">1. Seleccionar columnas:</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
-              {getAllColumnLabels()
-                .filter(label => currentEditingColumn && label !== currentEditingColumn.currentFormula)
-                .map((label, index) => (
-                  <Button
-                    key={index}
-                    label={label}
-                    onClick={() => addColumnToFormula(label)}
-                    className="p-button-sm p-button-outlined text-sm justify-start"
-                    icon="pi pi-plus"
-                  />
-                ))}
-            </div>
-          </Card>
-
-          {/* Operadores matemáticos */}
-          <Card>
-            <h4 className="font-semibold text-sm mb-3">2. Agregar operadores:</h4>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { label: '+ Suma', value: '+', icon: 'pi-plus' },
-                { label: '- Resta', value: '-', icon: 'pi-minus' },
-                { label: '× Multiplicación', value: '*', icon: 'pi-times' },
-                { label: '÷ División', value: '/', icon: 'pi-percentage' },
-                { label: '( Abrir paréntesis', value: '(', icon: 'pi-angle-left' },
-                { label: ') Cerrar paréntesis', value: ')', icon: 'pi-angle-right' }
-              ].map((op, index) => (
-                <Button
-                  key={index}
-                  label={op.label}
-                  onClick={() => addOperatorToFormula(op.value)}
-                  className="p-button-sm p-button-secondary"
-                  icon={`pi ${op.icon}`}
-                />
-              ))}
-            </div>
-          </Card>
-
-          {/* Agregar números */}
-          <Card>
-            <h4 className="font-semibold text-sm mb-3">3. Agregar números o constantes:</h4>
-            <div className="flex gap-2">
-              <InputText
-                placeholder="Ej: 0.5, 2, 100"
-                className="flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const value = (e.target as HTMLInputElement).value.trim();
-                    if (value && !isNaN(Number(value))) {
-                      addNumberToFormula(value);
-                      (e.target as HTMLInputElement).value = '';
-                    }
-                  }
-                }}
-              />
-              <Button
-                label="Agregar"
-                icon="pi pi-plus"
-                className="p-button-sm"
-                onClick={(e) => {
-                  const input = (e.currentTarget.parentElement?.querySelector('input') as HTMLInputElement);
-                  const value = input?.value.trim();
-                  if (value && !isNaN(Number(value))) {
-                    addNumberToFormula(value);
-                    input.value = '';
-                  }
-                }}
-              />
-            </div>
-            <small className="text-gray-500 text-xs block mt-2">
-              💡 Presione Enter o haga clic en Agregar
-            </small>
-          </Card>
-
-          {/* Acciones rápidas */}
-          <Card className="bg-yellow-50">
-            <h4 className="font-semibold text-sm mb-3">🚀 Acciones rápidas:</h4>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                label="Limpiar todo"
-                icon="pi pi-trash"
-                onClick={() => setFormulaParts([])}
-                className="p-button-sm p-button-danger p-button-outlined"
-              />
-              <Button
-                label="Deshacer último"
-                icon="pi pi-undo"
-                onClick={() => setFormulaParts(formulaParts.slice(0, -1))}
-                className="p-button-sm p-button-warning p-button-outlined"
-                disabled={formulaParts.length === 0}
-              />
-            </div>
-          </Card>
-
-          {/* Botones de acción */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Button
-              label="Cancelar"
-              icon="pi pi-times"
-              onClick={cancelFormulaEdit}
-              className="p-button-text"
-            />
-            <Button
-              label="Guardar Fórmula"
-              icon="pi pi-check"
-              onClick={saveFormula}
-              className="p-button-success"
-              disabled={formulaParts.length === 0}
-            />
-          </div>
-        </div>
-      </Dialog>
+        onHide={handleCancelFormulaEdit}
+        onSave={handleSaveFormula}
+        currentFormula={currentEditingColumn?.currentFormula || ''}
+        availableColumns={getAllColumnLabels()}
+        currentColumnLabel={currentEditingColumn?.currentLabel}
+      />
     </>
   );
 
