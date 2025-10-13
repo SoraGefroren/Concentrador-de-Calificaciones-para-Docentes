@@ -113,7 +113,7 @@ const ConfiguracionHoja = () => {
    * FUNCIONES PARA MANEJO DE FÓRMULAS CON REFERENCIAS A LABELS
    */
 
-  // Obtener todos los labels disponibles para usar en fórmulas
+  // Obtener todos los labels disponibles para usar en fórmulas (versión antigua - mantener para compatibilidad)
   const getAllColumnLabels = (): string[] => {
     const labels: string[] = [];
     columnConfig.forEach(group => {
@@ -124,6 +124,24 @@ const ConfiguracionHoja = () => {
       });
     });
     return labels;
+  };
+
+  // Nueva función: Obtener todas las columnas con información de grupo
+  const getAllColumnsWithGroupInfo = () => {
+    const columns: Array<{label: string, groupType: string, groupLabel: string, groupColor?: string}> = [];
+    columnConfig.forEach(group => {
+      group.columns.forEach(col => {
+        if (col.label && col.label.trim() !== '') {
+          columns.push({
+            label: col.label,
+            groupType: group.type || 'columns',
+            groupLabel: group.label || '',
+            groupColor: group.color || undefined
+          });
+        }
+      });
+    });
+    return columns;
   };
 
   /*
@@ -1628,7 +1646,7 @@ const ConfiguracionHoja = () => {
         onHide={handleCancelFormulaEdit}
         onSave={handleSaveFormula}
         currentFormula={currentEditingColumn?.currentFormula || ''}
-        availableColumns={getAllColumnLabels()}
+        availableColumns={getAllColumnsWithGroupInfo()}
         currentColumnLabel={currentEditingColumn?.currentLabel}
       />
     </>

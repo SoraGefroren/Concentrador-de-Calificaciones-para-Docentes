@@ -1,15 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog } from 'primereact/dialog';
 import { Button } from 'primereact/button';
 import { InputText } from 'primereact/inputtext';
 import { Card } from 'primereact/card';
+
+interface ColumnInfo {
+  label: string;
+  groupType: string; // 'info', 'period', 'columns'
+  groupLabel: string;
+  groupColor?: string; // Color del grupo (opcional)
+}
 
 interface FormulaEditorProps {
   visible: boolean;
   onHide: () => void;
   onSave: (formula: string) => void;
   currentFormula: string;
-  availableColumns: string[];
+  availableColumns: ColumnInfo[];
   currentColumnLabel?: string;
 }
 
@@ -24,6 +31,7 @@ const FormulaEditor = ({
   
   // Estado interno para las partes de la fórmula
   const [formulaParts, setFormulaParts] = useState<string[]>([]);
+  const [validationError, setValidationError] = useState<string>('');
 
   // Efecto para parsear la fórmula cuando cambie
   useEffect(() => {
@@ -88,19 +96,86 @@ const FormulaEditor = ({
    * FUNCIONES PARA MANIPULAR LA FÓRMULA
    */
 
+  // Validar fórmula matemáticamente
+  const validateFormula = useCallback((parts: string[]): string => {
+    if (parts.length === 0) return '';
+    
+    // 1. Validar paréntesis balanceados
+    let parenthesisCount = 0;
+    for (const part of parts) {
+      if (part === '(') parenthesisCount++;
+      if (part === ')') parenthesisCount--;
+      if (parenthesisCount < 0) {
+        return 'Error: Paréntesis de cierre sin apertura correspondiente';
+      }
+    }
+    if (parenthesisCount !== 0) {
+      return 'Error: Paréntesis no balanceados';
+    }
+
+    // 2. Validar que no haya operadores consecutivos (excepto paréntesis)
+    for (let i = 0; i < parts.length - 1; i++) {
+      const current = parts[i];
+      const next = parts[i + 1];
+      
+      const isOperator = (p: string) => ['+', '-', '*', '/'].includes(p);
+      
+      if (isOperator(current) && isOperator(next)) {
+        return 'Error: Operadores consecutivos no permitidos';
+      }
+      
+      // No puede terminar con operador
+      if (i === parts.length - 2 && isOperator(next)) {
+        return 'Error: La fórmula no puede terminar con un operador';
+      }
+    }
+
+    // 3. Validar que no empiece con operador binario
+    if (['+', '*', '/', ')'].includes(parts[0])) {
+      return 'Error: La fórmula no puede comenzar con este operador';
+    }
+
+    // 4. Validar secuencia lógica básica
+    for (let i = 0; i < parts.length - 1; i++) {
+      const current = parts[i];
+      const next = parts[i + 1];
+      
+      // Después de ( debe venir número, columna o - (negativo)
+      if (current === '(' && ['+', '*', '/', ')'].includes(next)) {
+        return 'Error: Después de "(" no puede venir este operador';
+      }
+      
+      // Antes de ) debe haber número o columna
+      if (next === ')' && ['+', '-', '*', '/', '('].includes(current)) {
+        return 'Error: Antes de ")" debe haber un valor';
+      }
+    }
+
+    return ''; // Fórmula válida
+  }, []);
+
+  // Actualizar validación cada vez que cambian las partes
+  useEffect(() => {
+    const error = validateFormula(formulaParts);
+    setValidationError(error);
+  }, [formulaParts, validateFormula]);
+
   // Agregar una columna a la fórmula
   const addColumnToFormula = (columnLabel: string) => {
-    setFormulaParts([...formulaParts, `[${columnLabel}]`]);
+    const newParts = [...formulaParts, `[${columnLabel}]`];
+    setFormulaParts(newParts);
   };
 
   // Agregar un operador a la fórmula
   const addOperatorToFormula = (operator: string) => {
-    setFormulaParts([...formulaParts, operator]);
+    const newParts = [...formulaParts, operator];
+    setFormulaParts(newParts);
   };
 
   // Agregar un número a la fórmula
   const addNumberToFormula = (number: string) => {
-    setFormulaParts([...formulaParts, number]);
+    const newParts = [...formulaParts, number];
+    setFormulaParts(newParts);
   };
 
   // Eliminar una parte específica de la fórmula
@@ -134,8 +209,38 @@ const FormulaEditor = ({
   };
 
   // Filtrar columnas disponibles (excluir la columna actual)
-  const getFilteredColumns = (): string[] => {
-    return availableColumns.filter(label => label !== currentColumnLabel);
+  const getFilteredColumns = (): ColumnInfo[] => {
+    return availableColumns.filter(col => col.label !== currentColumnLabel);
+  };
+
+  // Agrupar columnas por tipo
+  const getColumnsByType = () => {
+    const filtered = getFilteredColumns();
+    return {
+      info: filtered.filter(col => col.groupType === 'info'),
+      columns: filtered.filter(col => col.groupType === 'columns'),
+      period: filtered.filter(col => col.groupType === 'period')
+    };
+  };
+
+  // Obtener color de badge según el tipo de grupo
+  const getGroupTypeBadgeColor = (type: string): string => {
+    switch(type) {
+      case 'info': return 'bg-gray-500';
+      case 'columns': return 'bg-blue-500';
+      case 'period': return 'bg-purple-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  // Obtener etiqueta legible del tipo
+  const getGroupTypeLabel = (type: string): string => {
+    switch(type) {
+      case 'info': return 'Info';
+      case 'columns': return 'Fija';
+      case 'period': return 'Período';
+      default: return type;
+    }
   };
 
   /*
@@ -186,87 +291,184 @@ const FormulaEditor = ({
           </div>
         </Card>
 
-        {/* Selector de columnas */}
-        <Card>
-          <h4 className="font-semibold text-sm mb-3">1. Seleccionar columnas:</h4>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
-            {getFilteredColumns().length > 0 ? (
-              getFilteredColumns().map((label, index) => (
-                <Button
-                  key={index}
-                  label={label}
-                  onClick={() => addColumnToFormula(label)}
-                  className="p-button-sm p-button-outlined text-sm justify-start"
-                  icon="pi pi-plus"
+        {/* Mensaje de validación */}
+        {validationError && (
+          <div className="p-3 bg-red-50 border border-red-300 rounded-md text-red-700 text-sm flex items-start gap-2">
+            <i className="pi pi-exclamation-triangle mt-0.5"></i>
+            <span>{validationError}</span>
+          </div>
+        )}
+
+        {/* Diseño en dos columnas: Selector de columnas + Operadores y números */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          
+          {/* Columna izquierda: Selector de columnas */}
+          <Card>
+            <h4 className="font-semibold text-sm mb-3">📋 Seleccionar columnas:</h4>
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+              {(() => {
+                const grouped = getColumnsByType();
+                return (
+                  <>
+                    {/* Columnas de Info */}
+                    {grouped.info.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b">
+                          📊 Columnas de Información
+                        </div>
+                        <div className="space-y-1">
+                          {grouped.info.map((col, index) => (
+                            <Button
+                              key={`info-${index}`}
+                              onClick={() => addColumnToFormula(col.label)}
+                              className="w-full p-button-sm p-button-outlined text-left justify-start text-xs"
+                              style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#6b7280' }}
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
+                                  {getGroupTypeLabel(col.groupType)}
+                                </span>
+                                <span className="flex-1 truncate">{col.label}</span>
+                                <i className="pi pi-plus text-[10px]"></i>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Columnas Fijas */}
+                    {grouped.columns.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b">
+                          📌 Columnas Fijas
+                        </div>
+                        <div className="space-y-1">
+                          {grouped.columns.map((col, index) => (
+                            <Button
+                              key={`col-${index}`}
+                              onClick={() => addColumnToFormula(col.label)}
+                              className="w-full p-button-sm p-button-outlined text-left justify-start text-xs"
+                              style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#3b82f6' }}
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
+                                  {getGroupTypeLabel(col.groupType)}
+                                </span>
+                                <span className="flex-1 truncate">{col.label}</span>
+                                <i className="pi pi-plus text-[10px]"></i>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Columnas de Períodos */}
+                    {grouped.period.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b">
+                          📅 Columnas de Períodos
+                        </div>
+                        <div className="space-y-1">
+                          {grouped.period.map((col, index) => (
+                            <Button
+                              key={`period-${index}`}
+                              onClick={() => addColumnToFormula(col.label)}
+                              className="w-full p-button-sm p-button-outlined text-left justify-start text-xs"
+                              style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#7c3aed' }}
+                            >
+                              <div className="flex items-center gap-2 w-full">
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
+                                  {getGroupTypeLabel(col.groupType)}
+                                </span>
+                                <span className="flex-1 truncate" title={`${col.groupLabel} - ${col.label}`}>
+                                  {col.label}
+                                </span>
+                                <i className="pi pi-plus text-[10px]"></i>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {getFilteredColumns().length === 0 && (
+                      <p className="text-gray-500 text-sm text-center py-4">
+                        No hay columnas disponibles
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </Card>
+
+          {/* Columna derecha: Operadores y números */}
+          <div className="space-y-4">
+            {/* Operadores matemáticos */}
+            <Card>
+              <h4 className="font-semibold text-sm mb-3">🔢 Operadores:</h4>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: '+', title: 'Suma', value: '+', icon: 'pi-plus' },
+                  { label: '−', title: 'Resta', value: '-', icon: 'pi-minus' },
+                  { label: '×', title: 'Multiplicación', value: '*', icon: 'pi-times' },
+                  { label: '÷', title: 'División', value: '/', icon: 'pi-percentage' },
+                  { label: '(', title: 'Abrir paréntesis', value: '(', icon: 'pi-angle-left' },
+                  { label: ')', title: 'Cerrar paréntesis', value: ')', icon: 'pi-angle-right' }
+                ].map((op, index) => (
+                  <Button
+                    key={index}
+                    label={op.label}
+                    title={op.title}
+                    onClick={() => addOperatorToFormula(op.value)}
+                    className="p-button-sm p-button-secondary text-lg font-bold"
+                    style={{ height: '40px' }}
+                  />
+                ))}
+              </div>
+            </Card>
+
+            {/* Agregar números */}
+            <Card>
+              <h4 className="font-semibold text-sm mb-3">🔢 Números:</h4>
+              <div className="flex gap-2">
+                <InputText
+                  id="number-input"
+                  type="number"
+                  placeholder="Ej: 0.5, 2, 100"
+                  className="flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      const value = (e.target as HTMLInputElement).value.trim();
+                      if (value && !isNaN(Number(value))) {
+                        addNumberToFormula(value);
+                        (e.target as HTMLInputElement).value = '';
+                      }
+                    }
+                  }}
                 />
-              ))
-            ) : (
-              <p className="text-gray-500 text-sm col-span-3 text-center py-4">
-                No hay columnas disponibles
-              </p>
-            )}
+                <Button
+                  label="+"
+                  title="Agregar número"
+                  className="p-button-sm"
+                  onClick={() => {
+                    const input = document.getElementById('number-input') as HTMLInputElement;
+                    const value = input?.value.trim();
+                    if (value && !isNaN(Number(value))) {
+                      addNumberToFormula(value);
+                      input.value = '';
+                    }
+                  }}
+                />
+              </div>
+              <small className="text-gray-500 text-xs block mt-2">
+                💡 Presione Enter para agregar
+              </small>
+            </Card>
           </div>
-        </Card>
-
-        {/* Operadores matemáticos */}
-        <Card>
-          <h4 className="font-semibold text-sm mb-3">2. Agregar operadores:</h4>
-          <div className="flex flex-wrap gap-2">
-            {[
-              { label: '+ Suma', value: '+', icon: 'pi-plus' },
-              { label: '- Resta', value: '-', icon: 'pi-minus' },
-              { label: '× Multiplicación', value: '*', icon: 'pi-times' },
-              { label: '÷ División', value: '/', icon: 'pi-percentage' },
-              { label: '( Abrir paréntesis', value: '(', icon: 'pi-angle-left' },
-              { label: ') Cerrar paréntesis', value: ')', icon: 'pi-angle-right' }
-            ].map((op, index) => (
-              <Button
-                key={index}
-                label={op.label}
-                onClick={() => addOperatorToFormula(op.value)}
-                className="p-button-sm p-button-secondary"
-                icon={`pi ${op.icon}`}
-              />
-            ))}
-          </div>
-        </Card>
-
-        {/* Agregar números */}
-        <Card>
-          <h4 className="font-semibold text-sm mb-3">3. Agregar números o constantes:</h4>
-          <div className="flex gap-2">
-            <InputText
-              id="number-input"
-              placeholder="Ej: 0.5, 2, 100"
-              className="flex-1"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  const value = (e.target as HTMLInputElement).value.trim();
-                  if (value && !isNaN(Number(value))) {
-                    addNumberToFormula(value);
-                    (e.target as HTMLInputElement).value = '';
-                  }
-                }
-              }}
-            />
-            <Button
-              label="Agregar"
-              icon="pi pi-plus"
-              className="p-button-sm"
-              onClick={() => {
-                const input = document.getElementById('number-input') as HTMLInputElement;
-                const value = input?.value.trim();
-                if (value && !isNaN(Number(value))) {
-                  addNumberToFormula(value);
-                  input.value = '';
-                }
-              }}
-            />
-          </div>
-          <small className="text-gray-500 text-xs block mt-2">
-            💡 Presione Enter o haga clic en Agregar
-          </small>
-        </Card>
+        </div>
 
         {/* Acciones rápidas */}
         <Card className="bg-yellow-50">
@@ -301,7 +503,8 @@ const FormulaEditor = ({
             icon="pi pi-check"
             onClick={handleSave}
             className="p-button-success"
-            disabled={formulaParts.length === 0}
+            disabled={formulaParts.length === 0 || validationError !== ''}
+            title={validationError || 'Guardar fórmula válida'}
           />
         </div>
       </div>
