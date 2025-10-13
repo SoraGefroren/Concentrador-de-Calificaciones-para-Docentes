@@ -128,7 +128,7 @@ const ConfiguracionHoja = () => {
 
   // Nueva función: Obtener todas las columnas con información de grupo
   const getAllColumnsWithGroupInfo = () => {
-    const columns: Array<{label: string, groupType: string, groupLabel: string, groupColor?: string, tipoValor?: TipoValor | null}> = [];
+    const columns: Array<{label: string, groupType: string, groupLabel: string, groupColor?: string, tipoValor?: TipoValor | null, points?: number | null}> = [];
     columnConfig.forEach(group => {
       group.columns.forEach(col => {
         if (col.label && col.label.trim() !== '') {
@@ -137,7 +137,8 @@ const ConfiguracionHoja = () => {
             groupType: group.type || 'columns',
             groupLabel: group.label || '',
             groupColor: group.color || undefined,
-            tipoValor: col.tipoValor || null
+            tipoValor: col.tipoValor || null,
+            points: col.points || null
           });
         }
       });
@@ -223,11 +224,24 @@ const ConfiguracionHoja = () => {
     const allColumns = getAllColumnsWithGroupInfo();
     for (const part of parts) {
       if (isColumn(part)) {
-        const columnLabel = part.slice(1, -1); // Quitar [ ]
+        const content = part.slice(1, -1); // Quitar [ ]
         
         // Validar que el nombre de la columna no esté vacío
-        if (!columnLabel || columnLabel.trim() === '') {
+        if (!content || content.trim() === '') {
           return { isValid: false, error: `Columna vacía: "[]" no es válida. Use formato: [NombreColumna]` };
+        }
+        
+        // Parsear la referencia: [Columna] o [Columna:Valor] o [Columna:Puntos]
+        let columnLabel: string;
+        let refType: 'Valor' | 'Puntos' = 'Valor';
+        
+        if (content.includes(':')) {
+          const splitParts = content.split(':');
+          columnLabel = splitParts[0].trim();
+          const refTypeStr = splitParts[1]?.trim();
+          refType = (refTypeStr === 'Puntos' ? 'Puntos' : 'Valor');
+        } else {
+          columnLabel = content.trim();
         }
         
         const col = allColumns.find(c => c.label === columnLabel);
@@ -236,8 +250,16 @@ const ConfiguracionHoja = () => {
           return { isValid: false, error: `La columna "${columnLabel}" no existe. Verifique el nombre.` };
         }
         
-        if (col.tipoValor && col.tipoValor !== 'Número') {
-          return { isValid: false, error: `La columna "${columnLabel}" es de tipo ${col.tipoValor}, no Número` };
+        // Si la referencia es :Puntos, validar que la columna tenga puntos
+        if (refType === 'Puntos') {
+          if (col.points === null || col.points === undefined) {
+            return { isValid: false, error: `La columna "${columnLabel}" no tiene puntos configurados. No se puede usar [${columnLabel}:Puntos]` };
+          }
+        } else {
+          // Si la referencia es :Valor (o sin especificar), validar que sea numérica
+          if (col.tipoValor && col.tipoValor !== 'Número') {
+            return { isValid: false, error: `La columna "${columnLabel}" es de tipo ${col.tipoValor}, no Número` };
+          }
         }
       }
     }
