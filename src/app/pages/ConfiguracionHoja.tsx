@@ -16,6 +16,7 @@ import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
 import { getDefaultColumnConfig, getExcelColumnName, getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel } from '../common/utils/clusterOfMethods.tsx';
+import { Dialog } from 'primereact/dialog';
 import * as XLSX from 'xlsx';
 
 const ConfiguracionHoja = () => {
@@ -97,12 +98,205 @@ const ConfiguracionHoja = () => {
   // Apuntador para manejar el tab Activo
   const [activeTab, setActiveTab] = useState(0);
   
+  // Estados para el editor de fórmulas
+  const [formulaParts, setFormulaParts] = useState<string[]>([]);
+  const [showFormulaEditor, setShowFormulaEditor] = useState(false);
+  const [currentEditingColumn, setCurrentEditingColumn] = useState<{groupId: string, columnId: string, currentFormula: string} | null>(null);
+  
   // Opciones para los dropdowns
   const tipoValorOptions = [
     { label: 'Texto', value: 'Texto' },
     { label: 'Email', value: 'Email' },
     { label: 'Número', value: 'Número' }
   ];
+
+  /*
+   * FUNCIONES PARA MANEJO DE FÓRMULAS CON REFERENCIAS A LABELS
+   */
+
+  // Obtener todos los labels disponibles para usar en fórmulas
+  const getAllColumnLabels = (): string[] => {
+    const labels: string[] = [];
+    columnConfig.forEach(group => {
+      group.columns.forEach(col => {
+        if (col.label && col.label.trim() !== '') {
+          labels.push(col.label);
+        }
+      });
+    });
+    return labels;
+  };
+
+  /*
+   * FUNCIONES PARA EL EDITOR VISUAL DE FÓRMULAS
+   */
+
+  // Convertir una fórmula string en array de partes
+  const parseFormulaToArray = (formula: string): string[] => {
+    if (!formula) return [];
+    
+    const parts: string[] = [];
+    let currentToken = '';
+    let inBrackets = false;
+    
+    for (let i = 0; i < formula.length; i++) {
+      const char = formula[i];
+      
+      if (char === '[') {
+        if (currentToken.trim()) {
+          parts.push(currentToken.trim());
+          currentToken = '';
+        }
+        inBrackets = true;
+        currentToken = char;
+      } else if (char === ']') {
+        currentToken += char;
+        inBrackets = false;
+        parts.push(currentToken);
+        currentToken = '';
+      } else if (!inBrackets && (char === '+' || char === '-' || char === '*' || char === '/' || char === '(' || char === ')')) {
+        if (currentToken.trim()) {
+          parts.push(currentToken.trim());
+          currentToken = '';
+        }
+        parts.push(char);
+      } else {
+        currentToken += char;
+      }
+    }
+    
+    if (currentToken.trim()) {
+      parts.push(currentToken.trim());
+    }
+    
+    return parts;
+  };
+
+  // Convertir array de partes a fórmula string
+  const arrayToFormulaString = (parts: string[]): string => {
+    return parts.join(' ').replace(/\s+/g, ' ').trim();
+  };
+
+  // Abrir el editor de fórmulas
+  const openFormulaEditor = (groupId: string, columnId: string, currentFormula: string) => {
+    setCurrentEditingColumn({ groupId, columnId, currentFormula });
+    setFormulaParts(parseFormulaToArray(currentFormula || ''));
+    setShowFormulaEditor(true);
+  };
+
+  // Agregar una columna a la fórmula
+  const addColumnToFormula = (columnLabel: string) => {
+    setFormulaParts([...formulaParts, `[${columnLabel}]`]);
+  };
+
+  // Agregar un operador a la fórmula
+  const addOperatorToFormula = (operator: string) => {
+    setFormulaParts([...formulaParts, operator]);
+  };
+
+  // Agregar un número a la fórmula
+  const addNumberToFormula = (number: string) => {
+    setFormulaParts([...formulaParts, number]);
+  };
+
+  // Guardar la fórmula editada
+  const saveFormula = () => {
+    if (!currentEditingColumn) return;
+    
+    const formulaString = arrayToFormulaString(formulaParts);
+    updateColumnFromGroup(
+      currentEditingColumn.groupId, 
+      currentEditingColumn.columnId, 
+      { formula: formulaString }
+    );
+    
+    setShowFormulaEditor(false);
+    setCurrentEditingColumn(null);
+    setFormulaParts([]);
+    
+    toast.current?.show({
+      severity: 'success',
+      summary: 'Fórmula guardada',
+      detail: 'La fórmula se guardó correctamente',
+      life: 2000
+    });
+  };
+
+  // Cancelar edición de fórmula
+  const cancelFormulaEdit = () => {
+    setShowFormulaEditor(false);
+    setCurrentEditingColumn(null);
+    setFormulaParts([]);
+  };
+
+  // Validar que un label sea único
+  const isLabelUnique = (label: string, currentGroupId: string, currentColumnId: string): boolean => {
+    if (!label || label.trim() === '') return true;
+    
+    let count = 0;
+    columnConfig.forEach(group => {
+      group.columns.forEach(col => {
+        if (col.label === label) {
+          // Si es la misma columna que estamos editando, no contar
+          if (group.id === currentGroupId && col.id === currentColumnId) {
+            return;
+          }
+          count++;
+        }
+      });
+    });
+    return count === 0;
+  };
+
+  // Obtener todas las columnas que usan un label específico en sus fórmulas
+  const getColumnsUsingLabelInFormula = (oldLabel: string): Array<{groupId: string, columnId: string, formula: string}> => {
+    const results: Array<{groupId: string, columnId: string, formula: string}> = [];
+    const pattern = new RegExp(`\\[${oldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g');
+    
+    columnConfig.forEach(group => {
+      group.columns.forEach(col => {
+        if (col.formula && pattern.test(col.formula)) {
+          results.push({
+            groupId: group.id,
+            columnId: col.id,
+            formula: col.formula
+          });
+        }
+      });
+    });
+    return results;
+  };
+
+  // Actualizar fórmulas cuando cambia un label
+  const updateFormulasAfterLabelChange = (oldLabel: string, newLabel: string): void => {
+    if (!oldLabel || !newLabel || oldLabel === newLabel) return;
+    
+    const affectedColumns = getColumnsUsingLabelInFormula(oldLabel);
+    
+    if (affectedColumns.length > 0) {
+      const updatedConfig = [...columnConfig];
+      const pattern = new RegExp(`\\[${oldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g');
+      
+      affectedColumns.forEach(affected => {
+        const group = updatedConfig.find(g => g.id === affected.groupId);
+        if (group) {
+          const column = group.columns.find(c => c.id === affected.columnId);
+          if (column && column.formula) {
+            column.formula = column.formula.replace(pattern, `[${newLabel}]`);
+          }
+        }
+      });
+      
+      setConfig(updatedConfig);
+      
+      toast.current?.show({
+        severity: 'info',
+        summary: 'Fórmulas actualizadas',
+        detail: `Se actualizaron ${affectedColumns.length} fórmula(s) que referenciaban "${oldLabel}"`,
+        life: 4000
+      });
+    }
+  };
   
   /*
    * FUNCIONES DE APOYO A LA VISUALIZACIÓN
@@ -356,6 +550,30 @@ const ConfiguracionHoja = () => {
   };
 
   const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number; isEditable?: boolean; tipoValor?: TipoValor, formula?: string }) => {
+      // Si se está actualizando el label, validar y actualizar fórmulas
+      if (updates.label !== undefined) {
+        // Obtener el label anterior
+        const group = columnConfig.find(g => g.id === groupId);
+        const column = group?.columns.find(c => c.id === columnId);
+        const oldLabel = column?.label || '';
+        const newLabel = updates.label;
+        
+        // Validar unicidad del nuevo label
+        if (newLabel && newLabel.trim() !== '' && !isLabelUnique(newLabel, groupId, columnId)) {
+          toast.current?.show({
+            severity: 'warn',
+            summary: 'Label duplicado',
+            detail: `Ya existe otra columna con el nombre "${newLabel}". Se recomienda usar nombres únicos para evitar confusión en las fórmulas.`,
+            life: 5000
+          });
+        }
+        
+        // Actualizar fórmulas que referencian el label anterior
+        if (oldLabel && newLabel && oldLabel !== newLabel) {
+          updateFormulasAfterLabelChange(oldLabel, newLabel);
+        }
+      }
+      
       const updatedConfig = columnConfig.map(group => {
         if (group.id === groupId) {
           const updatedColumns = group.columns.map(column =>
@@ -921,17 +1139,42 @@ const ConfiguracionHoja = () => {
                                   </div>
 
                                   
-                                  <div>
-                                    <label className="block text-xs text-gray-600 mb-1">Formula</label>
-                                    <InputText
-                                      value={excelConfig.formula || ''}
-                                      onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
-                                      className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
-                                      disabled={excelConfig.isEditable === true}
-                                      placeholder="Formula (si no es editable)"
-                                      tooltip="Formula para calcular el valor de la columna. Solo si no es editable."
-                                      maxLength={100}
-                                    />
+                                  <div className="col-span-1 sm:col-span-2 lg:col-span-3">
+                                    <label className="block text-xs text-gray-600 mb-1">
+                                      Fórmula
+                                      {!excelConfig.isEditable && (
+                                        <span className="ml-2 text-blue-600 text-xs">
+                                          ✨ Editor visual disponible
+                                        </span>
+                                      )}
+                                    </label>
+                                    <div className="flex gap-2">
+                                      <InputText
+                                        value={excelConfig.formula || ''}
+                                        onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
+                                        className={`flex-1 text-sm bg-white rounded border p-2 ${
+                                          excelConfig.isEditable 
+                                            ? 'border-gray-200 bg-gray-50 cursor-not-allowed' 
+                                            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                                        }`}
+                                        disabled={excelConfig.isEditable === true}
+                                        placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: [Actividad 1] + [Actividad 2] / 2'}
+                                        maxLength={200}
+                                      />
+                                      {!excelConfig.isEditable && (
+                                        <Button
+                                          icon="pi pi-pencil"
+                                          className="p-button-sm bg-blue-500 hover:bg-blue-700 text-white"
+                                          tooltip="Abrir editor visual de fórmulas"
+                                          onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '')}
+                                        />
+                                      )}
+                                    </div>
+                                    {!excelConfig.isEditable && excelConfig.formula && (
+                                      <small className="text-green-600 text-xs block mt-1">
+                                        ✓ Fórmula: {excelConfig.formula}
+                                      </small>
+                                    )}
                                   </div>
 
                                 </div>
@@ -1029,6 +1272,44 @@ const ConfiguracionHoja = () => {
                                   tooltip="Permite editar esta columna en el catálogo de alumnos"
                                 />
                               </div>
+                            </div>
+                            
+                            <div className="col-span-1 sm:col-span-4 lg:col-span-3">
+                              <label className="block text-xs text-gray-600 mb-1">
+                                Fórmula
+                                {!excelConfig.isEditable && (
+                                  <span className="ml-2 text-blue-600 text-xs">
+                                    ✨ Editor visual disponible
+                                  </span>
+                                )}
+                              </label>
+                              <div className="flex gap-2">
+                                <InputText
+                                  value={excelConfig.formula || ''}
+                                  onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
+                                  className={`flex-1 text-sm bg-white rounded border p-2 ${
+                                    excelConfig.isEditable 
+                                      ? 'border-gray-200 bg-gray-50 cursor-not-allowed' 
+                                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                                  }`}
+                                  disabled={excelConfig.isEditable === true}
+                                  placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: [Columna A] + [Columna B]'}
+                                  maxLength={200}
+                                />
+                                {!excelConfig.isEditable && (
+                                  <Button
+                                    icon="pi pi-pencil"
+                                    className="p-button-sm bg-blue-500 hover:bg-blue-700 text-white"
+                                    tooltip="Abrir editor visual de fórmulas"
+                                    onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '')}
+                                  />
+                                )}
+                              </div>
+                              {!excelConfig.isEditable && excelConfig.formula && (
+                                <small className="text-green-600 text-xs block mt-1">
+                                  ✓ Fórmula: {excelConfig.formula}
+                                </small>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1131,17 +1412,42 @@ const ConfiguracionHoja = () => {
                                 </div>
                               </div>
                               
-                              <div>
-                                <label className="block text-xs text-gray-600 mb-1">Formula</label>
-                                <InputText
-                                  value={excelConfig.formula || ''}
-                                  onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
-                                  className="w-full text-sm bg-white rounded border border-gray-300 focus:border-blue-500 focus:ring-blue-500 p-2"
-                                  disabled={excelConfig.isEditable === true}
-                                  placeholder="Formula (si no es editable)"
-                                  tooltip="Formula para calcular el valor de la columna. Solo si no es editable."
-                                  maxLength={100}
-                                />
+                              <div className="col-span-1 sm:col-span-2 lg:col-span-3 ">
+                                <label className="block text-xs text-gray-600 mb-1">
+                                  Fórmula
+                                  {!excelConfig.isEditable && (
+                                    <span className="ml-2 text-blue-600 text-xs">
+                                      ✨ Editor visual disponible
+                                    </span>
+                                  )}
+                                </label>
+                                <div className="flex gap-2">
+                                  <InputText
+                                    value={excelConfig.formula || ''}
+                                    onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
+                                    className={`flex-1 text-sm bg-white rounded border p-2 ${
+                                      excelConfig.isEditable 
+                                        ? 'border-gray-200 bg-gray-50 cursor-not-allowed' 
+                                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                                    }`}
+                                    disabled={excelConfig.isEditable === true}
+                                    placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: ([Parcial 1] + [Parcial 2]) / 2'}
+                                    maxLength={200}
+                                  />
+                                  {!excelConfig.isEditable && (
+                                    <Button
+                                      icon="pi pi-pencil"
+                                      className="p-button-sm bg-blue-500 hover:bg-blue-700 text-white"
+                                      tooltip="Abrir editor visual de fórmulas"
+                                      onClick={() => openFormulaEditor(groupConfig.id, excelConfig.id, excelConfig.formula || '')}
+                                    />
+                                  )}
+                                </div>
+                                {!excelConfig.isEditable && excelConfig.formula && (
+                                  <small className="text-green-600 text-xs block mt-1">
+                                    ✓ Fórmula: {excelConfig.formula}
+                                  </small>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1257,6 +1563,116 @@ const ConfiguracionHoja = () => {
               </div>
             </Card>
           </TabPanel>
+
+          {/* 4. Panel de Ayuda para Fórmulas */}
+          <TabPanel header="Ayuda de Fórmulas" leftIcon="pi pi-question-circle mr-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Card de Información General */}
+              <Card className="bg-blue-50 border-l-4 border-blue-500">
+                <h4 className="font-bold text-lg mb-3 text-blue-800">📝 ¿Cómo escribir fórmulas?</h4>
+                <div className="space-y-3 text-sm">
+                  <p>Las fórmulas permiten calcular valores automáticamente basándose en otras columnas.</p>
+                  
+                  <div className="bg-white p-3 rounded border">
+                    <p className="font-semibold mb-2">Sintaxis básica:</p>
+                    <code className="text-blue-700 bg-blue-100 px-2 py-1 rounded block">
+                      [Nombre de Columna] + [Otra Columna] / 2
+                    </code>
+                  </div>
+                  
+                  <div className="bg-yellow-50 p-3 rounded border border-yellow-300">
+                    <p className="font-semibold text-yellow-800">⚠️ Importante:</p>
+                    <ul className="list-disc ml-5 mt-2 space-y-1">
+                      <li>Use nombres de columnas entre <code className="bg-yellow-200 px-1">[corchetes]</code></li>
+                      <li>Los nombres deben coincidir exactamente</li>
+                      <li>Se recomienda usar nombres únicos para evitar confusiones</li>
+                      <li>La columna debe estar marcada como NO editable</li>
+                    </ul>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Card de Ejemplos */}
+              <Card className="bg-green-50 border-l-4 border-green-500">
+                <h4 className="font-bold text-lg mb-3 text-green-800">✨ Ejemplos de Fórmulas</h4>
+                <div className="space-y-3 text-sm">
+                  <div className="bg-white p-3 rounded border">
+                    <p className="font-semibold text-gray-700">Promedio simple:</p>
+                    <code className="text-green-700 bg-green-100 px-2 py-1 rounded block mt-1">
+                      ([Parcial 1] + [Parcial 2]) / 2
+                    </code>
+                  </div>
+                  
+                  <div className="bg-white p-3 rounded border">
+                    <p className="font-semibold text-gray-700">Suma de actividades:</p>
+                    <code className="text-green-700 bg-green-100 px-2 py-1 rounded block mt-1">
+                      [Actividad 1] + [Actividad 2] + [Actividad 3]
+                    </code>
+                  </div>
+                  
+                  <div className="bg-white p-3 rounded border">
+                    <p className="font-semibold text-gray-700">Promedio ponderado:</p>
+                    <code className="text-green-700 bg-green-100 px-2 py-1 rounded block mt-1">
+                      ([Parcial 1] * 0.4) + ([Parcial 2] * 0.6)
+                    </code>
+                  </div>
+                  
+                  <div className="bg-white p-3 rounded border">
+                    <p className="font-semibold text-gray-700">Cálculo de promedio final:</p>
+                    <code className="text-green-700 bg-green-100 px-2 py-1 rounded block mt-1">
+                      ([Promedio P1] + [Promedio P2] + [Promedio P3]) / 3
+                    </code>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Card de Operadores */}
+              <Card className="bg-purple-50 border-l-4 border-purple-500">
+                <h4 className="font-bold text-lg mb-3 text-purple-800">🔢 Operadores Disponibles</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center bg-white p-2 rounded">
+                    <span className="font-mono font-bold text-purple-700">+</span>
+                    <span>Suma</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white p-2 rounded">
+                    <span className="font-mono font-bold text-purple-700">-</span>
+                    <span>Resta</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white p-2 rounded">
+                    <span className="font-mono font-bold text-purple-700">*</span>
+                    <span>Multiplicación</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white p-2 rounded">
+                    <span className="font-mono font-bold text-purple-700">/</span>
+                    <span>División</span>
+                  </div>
+                  <div className="flex justify-between items-center bg-white p-2 rounded">
+                    <span className="font-mono font-bold text-purple-700">( )</span>
+                    <span>Paréntesis para agrupar</span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* Card de Lista de Columnas Disponibles */}
+              <Card className="bg-indigo-50 border-l-4 border-indigo-500">
+                <h4 className="font-bold text-lg mb-3 text-indigo-800">📋 Columnas Disponibles</h4>
+                <div className="space-y-2 text-sm max-h-96 overflow-y-auto">
+                  {getAllColumnLabels().length > 0 ? (
+                    getAllColumnLabels().map((label, index) => (
+                      <div key={index} className="bg-white p-2 rounded border flex items-center justify-between">
+                        <span className="text-gray-700">{label}</span>
+                        <code className="text-indigo-700 bg-indigo-100 px-2 py-1 rounded text-xs">
+                          [{label}]
+                        </code>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500 text-center py-4">No hay columnas configuradas aún</p>
+                  )}
+                </div>
+              </Card>
+            </div>
+          </TabPanel>
         </TabView>
 
         <div className="mt-6 flex justify-center sm:justify-end">
@@ -1271,6 +1687,165 @@ const ConfiguracionHoja = () => {
           </div>
         </div>
       </div>
+
+      {/* Dialog del Editor Visual de Fórmulas */}
+      <Dialog
+        header="Editor Visual de Fórmulas"
+        visible={showFormulaEditor}
+        onHide={cancelFormulaEdit}
+        style={{ width: '90vw', maxWidth: '800px' }}
+        modal
+        draggable={false}
+      >
+        <div className="space-y-4">
+          {/* Vista previa de la fórmula construida */}
+          <Card className="bg-gray-50">
+            <h4 className="font-semibold text-sm mb-2">Fórmula construida:</h4>
+            <div className="bg-white p-3 rounded border min-h-[60px] flex items-center">
+              {formulaParts.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {formulaParts.map((part, index) => (
+                    <div
+                      key={index}
+                      className={`px-3 py-1 rounded text-sm flex items-center gap-2 ${
+                        part.startsWith('[') && part.endsWith(']')
+                          ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                          : ['+', '-', '*', '/', '(', ')'].includes(part)
+                          ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                          : 'bg-green-100 text-green-800 border border-green-300'
+                      }`}
+                    >
+                      <span>{part}</span>
+                      <button
+                        onClick={() => setFormulaParts(formulaParts.filter((_, i) => i !== index))}
+                        className="text-red-500 hover:text-red-700 font-bold text-xs"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-gray-400 text-sm">La fórmula aparecerá aquí...</span>
+              )}
+            </div>
+          </Card>
+
+          {/* Selector de columnas */}
+          <Card>
+            <h4 className="font-semibold text-sm mb-3">1. Seleccionar columnas:</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-60 overflow-y-auto">
+              {getAllColumnLabels()
+                .filter(label => currentEditingColumn && label !== currentEditingColumn.currentFormula)
+                .map((label, index) => (
+                  <Button
+                    key={index}
+                    label={label}
+                    onClick={() => addColumnToFormula(label)}
+                    className="p-button-sm p-button-outlined text-sm justify-start"
+                    icon="pi pi-plus"
+                  />
+                ))}
+            </div>
+          </Card>
+
+          {/* Operadores matemáticos */}
+          <Card>
+            <h4 className="font-semibold text-sm mb-3">2. Agregar operadores:</h4>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: '+ Suma', value: '+', icon: 'pi-plus' },
+                { label: '- Resta', value: '-', icon: 'pi-minus' },
+                { label: '× Multiplicación', value: '*', icon: 'pi-times' },
+                { label: '÷ División', value: '/', icon: 'pi-percentage' },
+                { label: '( Abrir paréntesis', value: '(', icon: 'pi-angle-left' },
+                { label: ') Cerrar paréntesis', value: ')', icon: 'pi-angle-right' }
+              ].map((op, index) => (
+                <Button
+                  key={index}
+                  label={op.label}
+                  onClick={() => addOperatorToFormula(op.value)}
+                  className="p-button-sm p-button-secondary"
+                  icon={`pi ${op.icon}`}
+                />
+              ))}
+            </div>
+          </Card>
+
+          {/* Agregar números */}
+          <Card>
+            <h4 className="font-semibold text-sm mb-3">3. Agregar números o constantes:</h4>
+            <div className="flex gap-2">
+              <InputText
+                placeholder="Ej: 0.5, 2, 100"
+                className="flex-1"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const value = (e.target as HTMLInputElement).value.trim();
+                    if (value && !isNaN(Number(value))) {
+                      addNumberToFormula(value);
+                      (e.target as HTMLInputElement).value = '';
+                    }
+                  }
+                }}
+              />
+              <Button
+                label="Agregar"
+                icon="pi pi-plus"
+                className="p-button-sm"
+                onClick={(e) => {
+                  const input = (e.currentTarget.parentElement?.querySelector('input') as HTMLInputElement);
+                  const value = input?.value.trim();
+                  if (value && !isNaN(Number(value))) {
+                    addNumberToFormula(value);
+                    input.value = '';
+                  }
+                }}
+              />
+            </div>
+            <small className="text-gray-500 text-xs block mt-2">
+              💡 Presione Enter o haga clic en Agregar
+            </small>
+          </Card>
+
+          {/* Acciones rápidas */}
+          <Card className="bg-yellow-50">
+            <h4 className="font-semibold text-sm mb-3">🚀 Acciones rápidas:</h4>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                label="Limpiar todo"
+                icon="pi pi-trash"
+                onClick={() => setFormulaParts([])}
+                className="p-button-sm p-button-danger p-button-outlined"
+              />
+              <Button
+                label="Deshacer último"
+                icon="pi pi-undo"
+                onClick={() => setFormulaParts(formulaParts.slice(0, -1))}
+                className="p-button-sm p-button-warning p-button-outlined"
+                disabled={formulaParts.length === 0}
+              />
+            </div>
+          </Card>
+
+          {/* Botones de acción */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
+            <Button
+              label="Cancelar"
+              icon="pi pi-times"
+              onClick={cancelFormulaEdit}
+              className="p-button-text"
+            />
+            <Button
+              label="Guardar Fórmula"
+              icon="pi pi-check"
+              onClick={saveFormula}
+              className="p-button-success"
+              disabled={formulaParts.length === 0}
+            />
+          </div>
+        </div>
+      </Dialog>
     </>
   );
 
