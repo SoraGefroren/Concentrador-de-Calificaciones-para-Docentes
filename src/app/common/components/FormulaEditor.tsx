@@ -9,6 +9,7 @@ interface ColumnInfo {
   groupType: string; // 'info', 'period', 'columns'
   groupLabel: string;
   groupColor?: string; // Color del grupo (opcional)
+  tipoValor?: 'Texto' | 'Email' | 'Número' | null; // Tipo de dato de la columna
 }
 
 interface FormulaEditorProps {
@@ -96,9 +97,14 @@ const FormulaEditor = ({
    * FUNCIONES PARA MANIPULAR LA FÓRMULA
    */
 
-  // Validar fórmula matemáticamente
+  // Validar fórmula matemáticamente con validación de tipos
   const validateFormula = useCallback((parts: string[]): string => {
     if (parts.length === 0) return '';
+    
+    const isOperator = (p: string) => ['+', '-', '*', '/'].includes(p);
+    const isNumber = (p: string) => !isNaN(Number(p));
+    const isColumn = (p: string) => p.startsWith('[') && p.endsWith(']');
+    const isValue = (p: string) => isNumber(p) || isColumn(p);
     
     // 1. Validar paréntesis balanceados
     let parenthesisCount = 0;
@@ -113,12 +119,10 @@ const FormulaEditor = ({
       return 'Error: Paréntesis no balanceados';
     }
 
-    // 2. Validar que no haya operadores consecutivos (excepto paréntesis)
+    // 2. Validar que no haya operadores consecutivos
     for (let i = 0; i < parts.length - 1; i++) {
       const current = parts[i];
       const next = parts[i + 1];
-      
-      const isOperator = (p: string) => ['+', '-', '*', '/'].includes(p);
       
       if (isOperator(current) && isOperator(next)) {
         return 'Error: Operadores consecutivos no permitidos';
@@ -135,24 +139,57 @@ const FormulaEditor = ({
       return 'Error: La fórmula no puede comenzar con este operador';
     }
 
-    // 4. Validar secuencia lógica básica
-    for (let i = 0; i < parts.length - 1; i++) {
+    // 4. Validar secuencia lógica: valor-operador-valor
+    for (let i = 0; i < parts.length; i++) {
       const current = parts[i];
       const next = parts[i + 1];
       
-      // Después de ( debe venir número, columna o - (negativo)
-      if (current === '(' && ['+', '*', '/', ')'].includes(next)) {
+      // Después de ( debe venir valor o - (negativo)
+      if (current === '(' && next && ['+', '*', '/', ')'].includes(next)) {
         return 'Error: Después de "(" no puede venir este operador';
       }
       
-      // Antes de ) debe haber número o columna
+      // Antes de ) debe haber valor
       if (next === ')' && ['+', '-', '*', '/', '('].includes(current)) {
         return 'Error: Antes de ")" debe haber un valor';
+      }
+      
+      // VALIDACIÓN SEMÁNTICA: Después de un valor debe venir operador o paréntesis de cierre
+      if (isValue(current) && next && !isOperator(next) && next !== ')') {
+        // Si el siguiente tampoco es un operador ni paréntesis, es un error
+        if (isValue(next)) {
+          return 'Error: Falta operador entre valores (ej: debe ser "5 + [Col]" no "5 [Col]")';
+        }
+      }
+      
+      // VALIDACIÓN SEMÁNTICA: Después de operador debe venir valor o paréntesis de apertura
+      if (isOperator(current) && next && !isValue(next) && next !== '(') {
+        return 'Error: Después de un operador debe venir un número o columna';
+      }
+      
+      // Después de ) debe venir operador o ) (para cerrar anidados)
+      if (current === ')' && next && !isOperator(next) && next !== ')') {
+        return 'Error: Después de ")" debe venir un operador';
+      }
+    }
+
+    // 5. Validar que solo se usen columnas numéricas (no texto)
+    for (const part of parts) {
+      if (isColumn(part)) {
+        const col = availableColumns.find(c => `[${c.label}]` === part);
+        if (!col) {
+          return `Error: La columna ${part} no existe`;
+        }
+        
+        // Validar que la columna sea de tipo Número
+        if (col.tipoValor && col.tipoValor !== 'Número') {
+          return `Error: La columna "${col.label}" es de tipo ${col.tipoValor}. Solo se permiten columnas numéricas en fórmulas`;
+        }
       }
     }
 
     return ''; // Fórmula válida
-  }, []);
+  }, [availableColumns]);
 
   // Actualizar validación cada vez que cambian las partes
   useEffect(() => {

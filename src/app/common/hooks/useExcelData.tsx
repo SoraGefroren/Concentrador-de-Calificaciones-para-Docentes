@@ -118,13 +118,14 @@ export const useExcelData = () => {
                                         date: '',
                                         points: null,
                                         label: ((rowExcelHeader.length > 1 ? rowExcelHeader[3] : '') || '').toString(),
+                                        formula: null
                                     };
                                     // Leer encabezados de datos de columna: ['', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable'] o ['', '', '', 'Columna', 'Fecha', 'Puntos']
                                     i++;
                                     if ((i < configData.length)) {
                                         const rowExcelConfig = configData[i];
                                         // Detectar encabezados de datos de columna (con o sin campo Editable)
-                                        if (rowExcelConfig[3] === 'Columna' && rowExcelConfig[4] === 'Fecha' && rowExcelConfig[5] === 'Puntos' && rowExcelConfig[6] === 'Editable') {
+                                        if (rowExcelConfig[3] === 'Columna' && rowExcelConfig[4] === 'Fecha' && rowExcelConfig[5] === 'Puntos' && rowExcelConfig[6] === 'Editable' && rowExcelConfig[7] === 'Formula') {
                                             // Leer información de encabezados de datos de columna: ['', '', '', 'G10', '19-ENE-22', '0', 'SI'] o ['', '', '', 'G10', '19-ENE-22', '0']
                                             i++;
                                             if ((i < configData.length)) {
@@ -143,7 +144,11 @@ export const useExcelData = () => {
                                                     // Valor por defecto si no se especifica
                                                     currentColumn.isEditable = true;
                                                 }
-                                                
+                                                // Manejar el campo formula si existe
+                                                if (rowExcelConfig[7] === 'Formula' && rowColumnExcel[7]) {
+                                                    currentColumn.formula = rowColumnExcel[7] ? rowColumnExcel[7].toString() : null;
+                                                }
+
                                                 // Agregar la columna actual al grupo
                                                 currentGroup.columns.push(currentColumn);
                                             }

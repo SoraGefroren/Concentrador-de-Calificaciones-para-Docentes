@@ -128,7 +128,7 @@ const ConfiguracionHoja = () => {
 
   // Nueva función: Obtener todas las columnas con información de grupo
   const getAllColumnsWithGroupInfo = () => {
-    const columns: Array<{label: string, groupType: string, groupLabel: string, groupColor?: string}> = [];
+    const columns: Array<{label: string, groupType: string, groupLabel: string, groupColor?: string, tipoValor?: TipoValor | null}> = [];
     columnConfig.forEach(group => {
       group.columns.forEach(col => {
         if (col.label && col.label.trim() !== '') {
@@ -136,12 +136,113 @@ const ConfiguracionHoja = () => {
             label: col.label,
             groupType: group.type || 'columns',
             groupLabel: group.label || '',
-            groupColor: group.color || undefined
+            groupColor: group.color || undefined,
+            tipoValor: col.tipoValor || null
           });
         }
       });
     });
     return columns;
+  };
+
+  /*
+   * FUNCIONES PARA VALIDACIÓN DE FÓRMULAS
+   */
+
+  // Validar fórmula completa (sintaxis y tipos)
+  const validateFormulaString = (formula: string): { isValid: boolean, error: string } => {
+    if (!formula || formula.trim() === '') {
+      return { isValid: true, error: '' };
+    }
+
+    // Parser mejorado de fórmula
+    const parseFormula = (f: string): string[] => {
+      const parts: string[] = [];
+      let current = '';
+      let inBrackets = false;
+      
+      for (let i = 0; i < f.length; i++) {
+        const char = f[i];
+        if (char === '[') {
+          if (current.trim()) parts.push(current.trim());
+          current = char;
+          inBrackets = true;
+        } else if (char === ']') {
+          current += char;
+          inBrackets = false;
+          parts.push(current);
+          current = '';
+        } else if (!inBrackets && ['+', '-', '*', '/', '(', ')'].includes(char)) {
+          if (current.trim()) parts.push(current.trim());
+          parts.push(char);
+          current = '';
+        } else if (char !== ' ' || inBrackets) {
+          current += char;
+        }
+      }
+      if (current.trim()) parts.push(current.trim());
+      return parts;
+    };
+
+    const parts = parseFormula(formula);
+    const isOperator = (p: string) => ['+', '-', '*', '/'].includes(p);
+    const isParenthesis = (p: string) => ['(', ')'].includes(p);
+    const isNumber = (p: string) => {
+      // Validar que sea un número válido (puede tener punto decimal)
+      return /^-?\d+(\.\d+)?$/.test(p);
+    };
+    const isColumn = (p: string) => p.startsWith('[') && p.endsWith(']') && p.length > 2;
+    const isValue = (p: string) => isNumber(p) || isColumn(p);
+
+    // 0. Validar que todas las partes sean válidas (tokens reconocidos)
+    for (const part of parts) {
+      if (!isOperator(part) && !isParenthesis(part) && !isValue(part)) {
+        return { isValid: false, error: `Token inválido: "${part}". Solo se permiten columnas [Nombre], números, operadores (+,-,*,/) y paréntesis` };
+      }
+    }
+
+    // Validar secuencia semántica
+    for (let i = 0; i < parts.length; i++) {
+      const current = parts[i];
+      const next = parts[i + 1];
+
+      // Después de un valor debe venir operador o )
+      if (isValue(current) && next && !isOperator(next) && next !== ')') {
+        if (isValue(next)) {
+          return { isValid: false, error: 'Falta operador entre valores' };
+        }
+      }
+
+      // Después de operador debe venir valor o (
+      if (isOperator(current) && next && !isValue(next) && next !== '(') {
+        return { isValid: false, error: 'Después de operador debe venir valor' };
+      }
+    }
+
+    // 6. Validar que las columnas existan y sean del tipo correcto
+    const allColumns = getAllColumnsWithGroupInfo();
+    for (const part of parts) {
+      if (isColumn(part)) {
+        const columnLabel = part.slice(1, -1); // Quitar [ ]
+        
+        // Validar que el nombre de la columna no esté vacío
+        if (!columnLabel || columnLabel.trim() === '') {
+          return { isValid: false, error: `Columna vacía: "[]" no es válida. Use formato: [NombreColumna]` };
+        }
+        
+        const col = allColumns.find(c => c.label === columnLabel);
+        
+        if (!col) {
+          return { isValid: false, error: `La columna "${columnLabel}" no existe. Verifique el nombre.` };
+        }
+        
+        if (col.tipoValor && col.tipoValor !== 'Número') {
+          return { isValid: false, error: `La columna "${columnLabel}" es de tipo ${col.tipoValor}, no Número` };
+        }
+      }
+    }
+
+    return { isValid: true, error: '' };
   };
 
   /*
@@ -658,7 +759,7 @@ const ConfiguracionHoja = () => {
               '', '', 'Encabezado', excelConfig.label
             ]);
             matrixConfigData.push([
-              '', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable'
+              '', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable', 'Formula'
             ]);
             matrixConfigData.push([
               '', '', '', excelConfig.id,
@@ -666,7 +767,8 @@ const ConfiguracionHoja = () => {
               ((excelConfig.points == 0 || excelConfig.points)
                   ? excelConfig.points
                   : ''),
-              (excelConfig.isEditable !== undefined ? (excelConfig.isEditable ? 'SI' : 'NO') : 'SI')
+              (excelConfig.isEditable !== undefined ? (excelConfig.isEditable ? 'SI' : 'NO') : 'SI'),
+              (excelConfig.formula || '')
             ]);
           });
           // Se inserta marca para el fin del grupo de la configuración
@@ -724,6 +826,45 @@ const ConfiguracionHoja = () => {
         detail: 'Debe existir al menos un período',
         life: 5000
       });
+      return;
+    }
+
+    // NUEVA VALIDACIÓN: Validar todas las fórmulas
+    const invalidFormulas: Array<{column: string, error: string}> = [];
+    columnConfig.forEach(group => {
+      group.columns.forEach(col => {
+        if (col.formula && col.formula.trim() !== '' && !col.isEditable) {
+          const validation = validateFormulaString(col.formula);
+          if (!validation.isValid) {
+            invalidFormulas.push({
+              column: col.label,
+              error: validation.error
+            });
+          }
+        }
+      });
+    });
+
+    if (invalidFormulas.length > 0) {
+      const errorDetails = invalidFormulas.map(f => `• ${f.column}: ${f.error}`).join('\n');
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Fórmulas inválidas detectadas',
+        detail: `Se encontraron ${invalidFormulas.length} fórmula(s) con errores. Por favor, corrígelas antes de guardar.`,
+        life: 8000
+      });
+      
+      // Mostrar un toast adicional con los detalles (si son pocas)
+      if (invalidFormulas.length <= 3) {
+        setTimeout(() => {
+          toast.current?.show({
+            severity: 'warn',
+            summary: 'Detalles de errores',
+            detail: errorDetails,
+            life: 10000
+          });
+        }, 500);
+      }
       return;
     }
 
@@ -1101,18 +1242,45 @@ const ConfiguracionHoja = () => {
                                       )}
                                     </label>
                                     <div className="flex gap-2">
-                                      <InputText
-                                        value={excelConfig.formula || ''}
-                                        onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
-                                        className={`flex-1 text-sm bg-white rounded border p-2 ${
-                                          excelConfig.isEditable 
-                                            ? 'border-gray-200 bg-gray-50 cursor-not-allowed' 
-                                            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                                        }`}
-                                        disabled={excelConfig.isEditable === true}
-                                        placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: [Actividad 1] + [Actividad 2] / 2'}
-                                        maxLength={200}
-                                      />
+                                      <div className="flex-1 relative">
+                                        <InputText
+                                          value={excelConfig.formula || ''}
+                                          onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
+                                          onBlur={(e) => {
+                                            const formula = e.target.value;
+                                            if (formula && formula.trim() !== '' && !excelConfig.isEditable) {
+                                              const validation = validateFormulaString(formula);
+                                              if (!validation.isValid) {
+                                                toast.current?.show({
+                                                  severity: 'warn',
+                                                  summary: `Error en fórmula de "${excelConfig.label}"`,
+                                                  detail: validation.error,
+                                                  life: 5000
+                                                });
+                                              }
+                                            }
+                                          }}
+                                          className={`w-full text-sm bg-white rounded border p-2 pr-8 ${
+                                            excelConfig.isEditable 
+                                              ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                                              : excelConfig.formula
+                                                ? validateFormulaString(excelConfig.formula).isValid
+                                                  ? 'border-green-300 focus:border-green-500 focus:ring-green-200'
+                                                  : 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                                                : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                                          }`}
+                                          disabled={excelConfig.isEditable === true}
+                                          placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: [Actividad 1] + [Actividad 2] / 2'}
+                                          maxLength={200}
+                                        />
+                                        {!excelConfig.isEditable && excelConfig.formula && (
+                                          <span className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${
+                                            validateFormulaString(excelConfig.formula).isValid ? 'text-green-500' : 'text-red-500'
+                                          }`}>
+                                            {validateFormulaString(excelConfig.formula).isValid ? '✓' : '⚠'}
+                                          </span>
+                                        )}
+                                      </div>
                                       {!excelConfig.isEditable && (
                                         <Button
                                           icon="pi pi-pencil"
@@ -1123,9 +1291,17 @@ const ConfiguracionHoja = () => {
                                       )}
                                     </div>
                                     {!excelConfig.isEditable && excelConfig.formula && (
-                                      <small className="text-green-600 text-xs block mt-1">
-                                        ✓ Fórmula: {excelConfig.formula}
-                                      </small>
+                                      <>
+                                        {validateFormulaString(excelConfig.formula).isValid ? (
+                                          <small className="text-green-600 text-xs block mt-1">
+                                            ✓ Fórmula válida: {excelConfig.formula}
+                                          </small>
+                                        ) : (
+                                          <small className="text-red-600 text-xs block mt-1">
+                                            ⚠ {validateFormulaString(excelConfig.formula).error}
+                                          </small>
+                                        )}
+                                      </>
                                     )}
                                   </div>
 
@@ -1236,18 +1412,45 @@ const ConfiguracionHoja = () => {
                                 )}
                               </label>
                               <div className="flex gap-2">
-                                <InputText
-                                  value={excelConfig.formula || ''}
-                                  onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
-                                  className={`flex-1 text-sm bg-white rounded border p-2 ${
-                                    excelConfig.isEditable 
-                                      ? 'border-gray-200 bg-gray-50 cursor-not-allowed' 
-                                      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                                  }`}
-                                  disabled={excelConfig.isEditable === true}
-                                  placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: [Columna A] + [Columna B]'}
-                                  maxLength={200}
-                                />
+                                <div className="flex-1 relative">
+                                  <InputText
+                                    value={excelConfig.formula || ''}
+                                    onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
+                                    onBlur={(e) => {
+                                      const formula = e.target.value;
+                                      if (formula && formula.trim() !== '' && !excelConfig.isEditable) {
+                                        const validation = validateFormulaString(formula);
+                                        if (!validation.isValid) {
+                                          toast.current?.show({
+                                            severity: 'warn',
+                                            summary: `Error en fórmula de "${excelConfig.label}"`,
+                                            detail: validation.error,
+                                            life: 5000
+                                          });
+                                        }
+                                      }
+                                    }}
+                                    className={`w-full text-sm bg-white rounded border p-2 pr-8 ${
+                                      excelConfig.isEditable 
+                                        ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                                        : excelConfig.formula
+                                          ? validateFormulaString(excelConfig.formula).isValid
+                                            ? 'border-green-300 focus:border-green-500 focus:ring-green-200'
+                                            : 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                                          : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                                    }`}
+                                    disabled={excelConfig.isEditable === true}
+                                    placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: [Columna A] + [Columna B]'}
+                                    maxLength={200}
+                                  />
+                                  {!excelConfig.isEditable && excelConfig.formula && (
+                                    <span className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${
+                                      validateFormulaString(excelConfig.formula).isValid ? 'text-green-500' : 'text-red-500'
+                                    }`}>
+                                      {validateFormulaString(excelConfig.formula).isValid ? '✓' : '⚠'}
+                                    </span>
+                                  )}
+                                </div>
                                 {!excelConfig.isEditable && (
                                   <Button
                                     icon="pi pi-pencil"
@@ -1258,9 +1461,17 @@ const ConfiguracionHoja = () => {
                                 )}
                               </div>
                               {!excelConfig.isEditable && excelConfig.formula && (
-                                <small className="text-green-600 text-xs block mt-1">
-                                  ✓ Fórmula: {excelConfig.formula}
-                                </small>
+                                <>
+                                  {validateFormulaString(excelConfig.formula).isValid ? (
+                                    <small className="text-green-600 text-xs block mt-1">
+                                      ✓ Fórmula válida: {excelConfig.formula}
+                                    </small>
+                                  ) : (
+                                    <small className="text-red-600 text-xs block mt-1">
+                                      ⚠ {validateFormulaString(excelConfig.formula).error}
+                                    </small>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
@@ -1374,18 +1585,45 @@ const ConfiguracionHoja = () => {
                                   )}
                                 </label>
                                 <div className="flex gap-2">
-                                  <InputText
-                                    value={excelConfig.formula || ''}
-                                    onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
-                                    className={`flex-1 text-sm bg-white rounded border p-2 ${
-                                      excelConfig.isEditable 
-                                        ? 'border-gray-200 bg-gray-50 cursor-not-allowed' 
-                                        : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
-                                    }`}
-                                    disabled={excelConfig.isEditable === true}
-                                    placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: ([Parcial 1] + [Parcial 2]) / 2'}
-                                    maxLength={200}
-                                  />
+                                  <div className="flex-1 relative">
+                                    <InputText
+                                      value={excelConfig.formula || ''}
+                                      onChange={(e) => updateColumnFromGroup(groupConfig.id, excelConfig.id, { formula: e.target.value })}
+                                      onBlur={(e) => {
+                                        const formula = e.target.value;
+                                        if (formula && formula.trim() !== '' && !excelConfig.isEditable) {
+                                          const validation = validateFormulaString(formula);
+                                          if (!validation.isValid) {
+                                            toast.current?.show({
+                                              severity: 'warn',
+                                              summary: `Error en fórmula de "${excelConfig.label}"`,
+                                              detail: validation.error,
+                                              life: 5000
+                                            });
+                                          }
+                                        }
+                                      }}
+                                      className={`w-full text-sm bg-white rounded border p-2 pr-8 ${
+                                        excelConfig.isEditable 
+                                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                                          : excelConfig.formula
+                                            ? validateFormulaString(excelConfig.formula).isValid
+                                              ? 'border-green-300 focus:border-green-500 focus:ring-green-200'
+                                              : 'border-red-300 focus:border-red-500 focus:ring-red-200'
+                                            : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                                      }`}
+                                      disabled={excelConfig.isEditable === true}
+                                      placeholder={excelConfig.isEditable ? 'Desmarque "Editable" para usar fórmula' : 'Ej: ([Parcial 1] + [Parcial 2]) / 2'}
+                                      maxLength={200}
+                                    />
+                                    {!excelConfig.isEditable && excelConfig.formula && (
+                                      <span className={`absolute right-2 top-1/2 transform -translate-y-1/2 ${
+                                        validateFormulaString(excelConfig.formula).isValid ? 'text-green-500' : 'text-red-500'
+                                      }`}>
+                                        {validateFormulaString(excelConfig.formula).isValid ? '✓' : '⚠'}
+                                      </span>
+                                    )}
+                                  </div>
                                   {!excelConfig.isEditable && (
                                     <Button
                                       icon="pi pi-pencil"
@@ -1396,9 +1634,17 @@ const ConfiguracionHoja = () => {
                                   )}
                                 </div>
                                 {!excelConfig.isEditable && excelConfig.formula && (
-                                  <small className="text-green-600 text-xs block mt-1">
-                                    ✓ Fórmula: {excelConfig.formula}
-                                  </small>
+                                  <>
+                                    {validateFormulaString(excelConfig.formula).isValid ? (
+                                      <small className="text-green-600 text-xs block mt-1">
+                                        ✓ Fórmula válida: {excelConfig.formula}
+                                      </small>
+                                    ) : (
+                                      <small className="text-red-600 text-xs block mt-1">
+                                        ⚠ {validateFormulaString(excelConfig.formula).error}
+                                      </small>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </div>
