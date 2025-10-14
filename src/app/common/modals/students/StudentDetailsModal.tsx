@@ -3,6 +3,7 @@ import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import type { ColumnExcelData, ColumnGroupConfig } from '../../../common/hooks/useExcelData';
 import { formatColumnHeader, formatDateValue, formatFieldName, getSectionsColumnsConfig } from '../../utils/clusterOfMethods';
+import { calculateSingleColumnFormula } from '../../utils/formulaEvaluator';
 
 interface StudentDetailsModalProps {
     visible: boolean;
@@ -65,22 +66,33 @@ const StudentDetailsModal = ({ visible, onHide, dates, points, data, groupInfo, 
 
     const renderSection = (fields: string[]) => (
         <div className="grid grid-cols-2 gap-4 mb-6">
-            {fields.map(key => (
-                <div key={key} className="col-span-1">
-                    <div className="font-bold text-gray-700">
-                        {formatColumnHeader(key)}
-                        {points && (points[key] || points[formatFieldName(key)]) ? ` / ${(points[key] || points[formatFieldName(key)])}` : ''}
+            {fields.map(key => {
+                // CALCULAR VALOR EN TIEMPO REAL SI LA COLUMNA TIENE FÓRMULA
+                let displayValue = data[key] || data[formatFieldName(key)] || '';
+                
+                // Intentar calcular si la columna tiene fórmula definida
+                const calculatedValue = calculateSingleColumnFormula(data, key, columnConfig);
+                if (calculatedValue !== null) {
+                    displayValue = calculatedValue;
+                }
+                
+                return (
+                    <div key={key} className="col-span-1">
+                        <div className="font-bold text-gray-700">
+                            {formatColumnHeader(key)}
+                            {points && (points[key] || points[formatFieldName(key)]) ? ` / ${(points[key] || points[formatFieldName(key)])}` : ''}
+                        </div>
+                        <div className="mt-1 p-2">
+                            {typeof displayValue === 'number' 
+                                ? new Intl.NumberFormat('es-MX', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                  }).format(Number(displayValue))
+                                : displayValue?.toString() ?? ''}
+                        </div>
                     </div>
-                    <div className="mt-1 p-2">
-                        {typeof (data[key] || data[formatFieldName(key)] || '') === 'number' 
-                            ? new Intl.NumberFormat('es-MX', {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2
-                              }).format(Number(data[key] || data[formatFieldName(key)] || 0))
-                            : (data[key] || data[formatFieldName(key)] || '')?.toString() ?? ''}
-                    </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
     
@@ -148,19 +160,31 @@ const StudentDetailsModal = ({ visible, onHide, dates, points, data, groupInfo, 
                                     key={key}
                                     field={key}
                                     header={formatColumnHeader(key)}
-                                    body={(rowData) => (
-                                        <div className="text-right font-bold">
-                                            {rowData.name === 'Fecha' 
-                                                ? formatDateValue(rowData[key])
-                                                : typeof rowData[key] === 'number'
-                                                    ? new Intl.NumberFormat('es-MX', {
-                                                        minimumFractionDigits: 2,
-                                                        maximumFractionDigits: 2
-                                                    }).format(rowData[key])
-                                                    : rowData[key]?.toString() ?? ''
+                                    body={(rowData) => {
+                                        // CALCULAR VALOR EN TIEMPO REAL SI LA COLUMNA TIENE FÓRMULA Y ES LA FILA DE RESULTADOS
+                                        let displayValue = rowData[key];
+                                        
+                                        if (rowData.name === 'Resultados') {
+                                            const calculatedValue = calculateSingleColumnFormula(data, key, columnConfig);
+                                            if (calculatedValue !== null) {
+                                                displayValue = calculatedValue;
                                             }
-                                        </div>
-                                    )}
+                                        }
+                                        
+                                        return (
+                                            <div className="text-right font-bold">
+                                                {rowData.name === 'Fecha' 
+                                                    ? formatDateValue(displayValue)
+                                                    : typeof displayValue === 'number'
+                                                        ? new Intl.NumberFormat('es-MX', {
+                                                            minimumFractionDigits: 2,
+                                                            maximumFractionDigits: 2
+                                                        }).format(displayValue)
+                                                        : displayValue?.toString() ?? ''
+                                                }
+                                            </div>
+                                        );
+                                    }}
                                     style={{ textAlign: 'center' }}
                                 />
                             ))}

@@ -12,6 +12,7 @@ import StudentActionButtons from '../common/modals/students/StudentActionButtons
 import DeleteStudentModal from '../common/modals/students/DeleteStudentModal.tsx';
 import { InputText } from 'primereact/inputtext';
 import { formatColumnHeader, formatFieldName, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
+import { calculateSingleColumnFormula } from '../common/utils/formulaEvaluator.tsx';
 
 /**
  * ARQUITECTURA DE DATOS REFACTORIZADA:
@@ -187,13 +188,22 @@ const AlumnadoCatalogo = () => {
                     (rowData[excelColumn] || rowData[excelColumn] == '0') && !isNaN(Number(rowData[excelColumn])) ||
                     (rowData[formatFieldName(excelColumn)] || rowData[formatFieldName(excelColumn)] == '0') && !isNaN(Number(rowData[formatFieldName(excelColumn)]))
                 ) {
+                    // CALCULAR VALOR EN TIEMPO REAL SI LA COLUMNA TIENE FÓRMULA
+                    let displayValue = rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '0';
+                    
+                    // Intentar calcular si la columna tiene fórmula definida
+                    const calculatedValue = calculateSingleColumnFormula(rowData, excelColumn, columnConfig);
+                    if (calculatedValue !== null) {
+                        displayValue = calculatedValue;
+                    }
+                    
                     return <div className="w-full text-right">
                                 { 
                                     new Intl.NumberFormat('en-US', {
                                         minimumFractionDigits: 2,
                                         maximumFractionDigits: 2,
                                     }).format(
-                                        parseFloat((rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '0') + '')
+                                        parseFloat(displayValue + '')
                                     )
                                 }
                             </div>

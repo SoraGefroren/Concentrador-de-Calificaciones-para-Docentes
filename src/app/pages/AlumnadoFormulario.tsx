@@ -10,6 +10,7 @@ import { Toast } from 'primereact/toast';
 import type { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, TipoValor } from '../common/hooks/useExcelData';
 import { formatFieldName, formatColumnHeader, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
 import { calculateFormulasForStudent } from '../common/utils/formulaEvaluator.tsx';
+import { translateToExcelFormula } from '../common/utils/excelFormulaTranslator.tsx';
 import * as XLSX from 'xlsx';
 
 // Tipo para valores de entrada
@@ -253,10 +254,13 @@ const AlumnadoFormulario = () => {
 
             // Agregar los datos de los alumnos (incluyendo los cambios)
             if (updatedExcelData && updatedExcelData.length > 0 && arrayHeaderFields.length > 0) {
-                updatedExcelData.forEach((rowData) => {
+                updatedExcelData.forEach((rowData, studentIndex) => {
                     // Se inserta una nueva fila
                     matrixExcelData.push([]);
                     const lastIndex = matrixExcelData.length - 1;
+                    // Número de fila real en Excel (fila 1 = headers, fila 2 = dates, fila 3 = points, fila 4+ = students)
+                    const excelRowNumber = studentIndex + 4; // +4 porque las filas 1,2,3 son headers/dates/points
+                    
                     // Se recorre cada columna para agregar los datos
                     arrayHeaderFields.forEach((headerField) => {
                         const value = rowData[headerField];
@@ -265,7 +269,42 @@ const AlumnadoFormulario = () => {
                 });
             }
 
+            // Convertir a worksheet
             const wsData = XLSX.utils.aoa_to_sheet(matrixExcelData);
+            
+            // PASO CRÍTICO: Reemplazar valores por fórmulas Excel en columnas calculadas
+            if (updatedExcelData && updatedExcelData.length > 0) {
+                updatedExcelData.forEach((_rowData, studentIndex) => {
+                    const excelRowNumber = studentIndex + 4; // Fila real en Excel
+                    
+                    // Buscar columnas con fórmulas en la configuración
+                    columnConfig.forEach(group => {
+                        group.columns.forEach(col => {
+                            // Si la columna tiene fórmula Y no es editable = columna calculada
+                            if (col.formula && col.formula.trim() !== '' && col.isEditable === false && col.id) {
+                                // Traducir fórmula personalizada → fórmula Excel
+                                const excelFormula = translateToExcelFormula(
+                                    col.formula,
+                                    excelRowNumber,
+                                    columnConfig
+                                );
+                                
+                                // Escribir la fórmula en la celda (formato: columna + fila, ej: "J4")
+                                const cellAddress = `${col.id}${excelRowNumber}`;
+                                
+                                if (wsData[cellAddress]) {
+                                    // Reemplazar el valor por la fórmula
+                                    // XLSX usa la propiedad 'f' para fórmulas (sin el '=')
+                                    wsData[cellAddress] = {
+                                        f: excelFormula.startsWith('=') ? excelFormula.substring(1) : excelFormula,
+                                        t: 'n' // Tipo numérico
+                                    };
+                                }
+                            }
+                        });
+                    });
+                });
+            }
 
             // Crear worksheet de datos
             XLSX.utils.book_append_sheet(wb, wsData, 'Calificaciones');

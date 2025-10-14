@@ -205,3 +205,42 @@ export const calculateFormulasForAllStudents = (
     calculateFormulasForStudent(studentData, columnConfig)
   );
 };
+
+/**
+ * Calcula el valor de una sola columna con fórmula para un estudiante específico
+ * Útil para cálculos individuales en tiempo real
+ * 
+ * @param studentData - Datos del estudiante
+ * @param columnLabel - Nombre de la columna a calcular
+ * @param columnConfig - Configuración completa de columnas
+ * @returns Valor calculado o null si hay error o no tiene fórmula
+ */
+export const calculateSingleColumnFormula = (
+  studentData: ColumnExcelData,
+  columnLabel: string,
+  columnConfig: ColumnGroupConfig[]
+): number | null => {
+  // Buscar la columna en la configuración
+  let targetColumn = null;
+  
+  for (const group of columnConfig) {
+    const found = group.columns.find(col => col.label === columnLabel);
+    if (found) {
+      targetColumn = found;
+      break;
+    }
+  }
+  
+  // Si no se encuentra o no tiene fórmula, retornar null
+  if (!targetColumn || !targetColumn.formula || targetColumn.formula.trim() === '') {
+    return null;
+  }
+  
+  // Evaluar la fórmula
+  const context: FormulaEvaluationContext = {
+    studentData,
+    columnConfig
+  };
+  
+  return evaluateFormula(targetColumn.formula, context);
+};
