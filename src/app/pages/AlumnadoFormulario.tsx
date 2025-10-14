@@ -9,6 +9,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Toast } from 'primereact/toast';
 import type { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, TipoValor } from '../common/hooks/useExcelData';
 import { formatFieldName, formatColumnHeader, getSectionsColumnsConfig } from '../common/utils/clusterOfMethods.tsx';
+import { calculateFormulasForStudent } from '../common/utils/formulaEvaluator.tsx';
 import * as XLSX from 'xlsx';
 
 // Tipo para valores de entrada
@@ -103,9 +104,11 @@ const AlumnadoFormulario = () => {
 
     useEffect(() => {
         if (alumnoData && formMode !== 'register') {
-            setFormDatas(alumnoData);
+            // Calcular fórmulas al cargar los datos del alumno
+            const dataWithFormulas = calculateFormulasForStudent(alumnoData, columnConfig);
+            setFormDatas(dataWithFormulas);
         }
-    }, [alumnoData, formMode]);
+    }, [alumnoData, formMode, columnConfig]);
     
     // Menu de error si no se encuentra el alumno
     if (!alumnoData && formMode !== 'register') {
@@ -123,10 +126,14 @@ const AlumnadoFormulario = () => {
     }
 
     const handleInputChange = (field: string, value: FormFieldValue) => {
-        setFormDatas((prev: ColumnExcelData) => ({
-            ...prev,
+        const updatedData = {
+            ...formDatas,
             [field]: value ?? ''
-        }));
+        };
+        
+        // Recalcular fórmulas después de actualizar el campo
+        const calculatedData = calculateFormulasForStudent(updatedData, columnConfig);
+        setFormDatas(calculatedData);
     };
 
     const handleSaveForm = async () => {
@@ -285,7 +292,7 @@ const AlumnadoFormulario = () => {
                         '', '', 'Encabezado', excelConfig.label
                     ]);
                     matrixConfigData.push([
-                        '', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable'
+                        '', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable', 'Formula'
                     ]);
                     matrixConfigData.push([
                         '', '', '', excelConfig.id,
@@ -293,7 +300,8 @@ const AlumnadoFormulario = () => {
                         ((excelConfig.points == 0 || excelConfig.points)
                             ? excelConfig.points
                             : ''),
-                        (excelConfig.isEditable !== undefined ? (excelConfig.isEditable ? 'SI' : 'NO') : 'SI')
+                        (excelConfig.isEditable !== undefined ? (excelConfig.isEditable ? 'SI' : 'NO') : 'SI'),
+                        (excelConfig.formula || '')
                     ]);
                 });
                 // Se inserta marca para el fin del grupo de la configuración

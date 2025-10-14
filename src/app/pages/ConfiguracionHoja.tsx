@@ -29,7 +29,7 @@ const ConfiguracionHoja = () => {
   const excelData: ColumnExcelData[] = context?.excelData || [];
 
   // Determinar si hay datos de Excel para mostrar o no el Menu
-  const hasExcelData: boolean = (excelData).length > 0;
+  const hasExcelData: boolean = (excelData).length > 2;
   
   // Abstraer los datos de los estudiantes
   const studentsExcelData = excelData.length > 2 ? [...excelData].slice(2, excelData.length) : [];
