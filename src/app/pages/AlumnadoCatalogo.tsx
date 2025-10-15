@@ -154,6 +154,17 @@ const AlumnadoCatalogo = () => {
         });
     };
 
+    // Función helper para buscar si una columna tiene fórmula definida
+    const getColumnFormula = (columnLabel: string): string | null => {
+        for (const group of columnConfig) {
+            const col = group.columns.find(c => c.label === columnLabel);
+            if (col && col.formula && col.formula.trim() !== '') {
+                return col.formula;
+            }
+        }
+        return null;
+    };
+
     const columnContentShowBodyTemplate = (excelColumn: string) => {
         // Retornamos una función que recibe el rowData y rowIndex
         return (rowData: ColumnExcelData, props: { rowIndex: number }) => {
@@ -177,42 +188,57 @@ const AlumnadoCatalogo = () => {
                 // Verificar si es la primera columna (ID) para mostrar botones de acción
                 if (idColumnName === excelColumn) {
                     return columnContentValueIdentifierTemplate(rowData, { field: excelColumn, rowIndex });    
-                // Verificar el contenido hace match con el formato de los correos electrónicos
-                } else if (
+                }
+                
+                // PRIORIDAD 1: Verificar si la columna tiene una FÓRMULA definida
+                const columnFormula = getColumnFormula(excelColumn);
+                if (columnFormula) {
+                    // Si tiene fórmula, calcular el valor en tiempo real
+                    const calculatedValue = calculateSingleColumnFormula(rowData, excelColumn, columnConfig);
+                    
+                    if (calculatedValue !== null) {
+                        // Mostrar el valor calculado con formato numérico
+                        return <div className="w-full text-right">
+                                    { 
+                                        new Intl.NumberFormat('en-US', {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2,
+                                        }).format(calculatedValue)
+                                    }
+                                </div>;
+                    } else {
+                        // Si la fórmula falló, mostrar 0 o mensaje de error
+                        return <div className="w-full text-right text-red-500">
+                                    Error
+                                </div>;
+                    }
+                }
+                
+                // PRIORIDAD 2: Verificar el contenido hace match con el formato de correos electrónicos
+                if (
                     rowData[excelColumn] && (rowData[excelColumn] as string).match(/^(.+)@(.+)$/) ||
                     rowData[formatFieldName(excelColumn)] && (rowData[formatFieldName(excelColumn)] as string).match(/^(.+)@(.+)$/)
                 ) {
                     return columnContentValueMailTemplate(rowData, { field: excelColumn, rowIndex });
-                // Verificar si es algún tipo de número para formatearlo
-                } else if (
-                    (rowData[excelColumn] || rowData[excelColumn] == '0') && !isNaN(Number(rowData[excelColumn])) ||
-                    (rowData[formatFieldName(excelColumn)] || rowData[formatFieldName(excelColumn)] == '0') && !isNaN(Number(rowData[formatFieldName(excelColumn)]))
-                ) {
-                    // CALCULAR VALOR EN TIEMPO REAL SI LA COLUMNA TIENE FÓRMULA
-                    let displayValue = rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '0';
-                    
-                    // Intentar calcular si la columna tiene fórmula definida
-                    const calculatedValue = calculateSingleColumnFormula(rowData, excelColumn, columnConfig);
-                    if (calculatedValue !== null) {
-                        displayValue = calculatedValue;
-                    }
-                    
+                }
+                
+                // PRIORIDAD 3: Verificar si es algún tipo de número para formatearlo
+                const fieldValue = rowData[excelColumn] || rowData[formatFieldName(excelColumn)];
+                if ((fieldValue || fieldValue === 0) && !isNaN(Number(fieldValue))) {
                     return <div className="w-full text-right">
                                 { 
                                     new Intl.NumberFormat('en-US', {
                                         minimumFractionDigits: 2,
                                         maximumFractionDigits: 2,
-                                    }).format(
-                                        parseFloat(displayValue + '')
-                                    )
+                                    }).format(parseFloat(String(fieldValue)))
                                 }
-                            </div>
-                // Simplemente mostrar el valor como texto
-                } else {
-                    return  <div className="w-full text-left font-semibold">
-                                { rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '' }
                             </div>;
                 }
+                
+                // PRIORIDAD 4: Simplemente mostrar el valor como texto
+                return  <div className="w-full text-left font-semibold">
+                            { rowData[excelColumn] || rowData[formatFieldName(excelColumn)] || '' }
+                        </div>;
             }
         };
     };

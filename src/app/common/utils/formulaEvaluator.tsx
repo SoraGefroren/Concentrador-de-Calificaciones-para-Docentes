@@ -70,6 +70,8 @@ const replaceFormulaReferences = (
     });
   });
 
+  console.log('📋 Mapa de columnas disponibles:', Array.from(columnMap.entries()));
+
   // Buscar todas las referencias [...]
   const referencePattern = /\[([^\]]+)\]/g;
   
@@ -94,25 +96,31 @@ const replaceFormulaReferences = (
     const colInfo = columnMap.get(columnId);
     
     if (!colInfo) {
-      console.warn(`Columna con ID "${columnId}" no encontrada en la configuración`);
+      console.warn(`❌ Columna con ID "${columnId}" no encontrada en la configuración`);
       return '0';
     }
+
+    console.log(`🔍 Resolviendo [${trimmedContent}] → columnId: ${columnId}, label: ${colInfo.label}, refType: ${refType}`);
 
     // Obtener el valor correspondiente
     if (refType === 'Puntos') {
       // Buscar los puntos configurados
       if (colInfo.points !== null && colInfo.points !== undefined) {
+        console.log(`  → Puntos: ${colInfo.points}`);
         return colInfo.points.toString();
       } else {
-        console.warn(`Columna "${colInfo.label}" (${columnId}) no tiene puntos configurados`);
+        console.warn(`⚠️ Columna "${colInfo.label}" (${columnId}) no tiene puntos configurados`);
         return '0';
       }
     } else {
       // Buscar el valor en los datos del estudiante usando el label
       const value = studentData[colInfo.label];
       
+      console.log(`  → Buscando valor en studentData["${colInfo.label}"]:`, value);
+      
       if (value === null || value === undefined || value === '') {
         // Si no hay valor, usar 0 para evitar errores
+        console.log(`  → Sin valor, usando 0`);
         return '0';
       }
       
@@ -120,10 +128,11 @@ const replaceFormulaReferences = (
       const numValue = typeof value === 'number' ? value : parseFloat(String(value));
       
       if (isNaN(numValue)) {
-        console.warn(`Valor no numérico en columna "${colInfo.label}" (${columnId}): ${value}`);
+        console.warn(`⚠️ Valor no numérico en columna "${colInfo.label}" (${columnId}): ${value}`);
         return '0';
       }
       
+      console.log(`  → Valor numérico: ${numValue}`);
       return numValue.toString();
     }
   });
@@ -242,10 +251,23 @@ export const calculateSingleColumnFormula = (
     }
   }
   
-  // Si no se encuentra o no tiene fórmula, retornar null
-  if (!targetColumn || !targetColumn.formula || targetColumn.formula.trim() === '') {
+  // Si no se encuentra la columna, retornar null
+  if (!targetColumn) {
+    console.warn(`⚠️ Columna "${columnLabel}" no encontrada en columnConfig`);
     return null;
   }
+  
+  // Si no tiene fórmula, retornar null
+  if (!targetColumn.formula || targetColumn.formula.trim() === '') {
+    return null;
+  }
+  
+  // Log de depuración (descomenta para debuggear)
+  console.log(`🔢 Calculando fórmula para columna "${columnLabel}":`, {
+    formula: targetColumn.formula,
+    columnId: targetColumn.id,
+    isEditable: targetColumn.isEditable
+  });
   
   // Evaluar la fórmula
   const context: FormulaEvaluationContext = {
@@ -253,5 +275,13 @@ export const calculateSingleColumnFormula = (
     columnConfig
   };
   
-  return evaluateFormula(targetColumn.formula, context);
+  const result = evaluateFormula(targetColumn.formula, context);
+  
+  if (result !== null) {
+    console.log(`✅ Resultado calculado para "${columnLabel}":`, result);
+  } else {
+    console.error(`❌ Error al calcular fórmula para "${columnLabel}"`);
+  }
+  
+  return result;
 };
