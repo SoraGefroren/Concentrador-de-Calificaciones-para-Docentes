@@ -2,28 +2,30 @@
  * Traductor de Fórmulas: Sistema Dual
  * 
  * Este módulo traduce entre dos formatos:
- * 1. Fórmula Personalizada: [Columna], [Columna:Valor], [Columna:Puntos]
+ * 1. Fórmula Personalizada: [ID], [ID:Valor], [ID:Puntos] (ej: [C], [C:Puntos])
  * 2. Fórmula Excel Nativa: =A4, =$A$2, etc.
  * 
  * Propósito:
  * - Permite que el archivo Excel funcione independientemente
  * - Mantiene compatibilidad con el sistema de gestión
+ * - Usa IDs (letras de Excel) para referencias estables
  */
 
 import type { ColumnGroupConfig } from '../hooks/useExcelData';
 
 /**
- * Construye un mapa de nombres de columna → letra Excel
- * Ejemplo: "NOMBRE" → "B", "EXAMEN1" → "E"
+ * Construye un mapa de ID de columna → letra Excel
+ * Ejemplo: "B" → "B", "E" → "E"
+ * NOTA: Como ya usamos IDs (letras Excel), este mapa es directo
  */
 const buildColumnLetterMap = (columnConfig: ColumnGroupConfig[]): Map<string, string> => {
   const columnMap = new Map<string, string>();
   
   columnConfig.forEach(group => {
     group.columns.forEach(col => {
-      if (col.label && col.id) {
+      if (col.id) {
         // El ID ya es la letra de la columna (ej: "A", "B", "C")
-        columnMap.set(col.label, col.id);
+        columnMap.set(col.id, col.id);
       }
     });
   });
@@ -34,15 +36,15 @@ const buildColumnLetterMap = (columnConfig: ColumnGroupConfig[]): Map<string, st
 /**
  * Traduce fórmula personalizada → Fórmula Excel
  * 
- * @param customFormula - Fórmula personalizada (ej: "[Examen1] / [Examen1:Puntos] * 100")
+ * @param customFormula - Fórmula personalizada (ej: "[E] / [E:Puntos] * 100")
  * @param rowNumber - Número de fila del estudiante en Excel (ej: 4, 5, 6...)
  * @param columnConfig - Configuración completa de columnas
  * @returns Fórmula Excel (ej: "=E4/$E$2*100")
  * 
  * Ejemplos:
- * - "[PRESENTACION-ENCUADRE]" → "F4" (fila del estudiante)
- * - "[PRESENTACION-ENCUADRE:Puntos]" → "$F$2" (fila fija de puntos)
- * - "[Examen1] / [Examen1:Puntos] * 100" → "=E4/$E$2*100"
+ * - "[F]" → "F4" (fila del estudiante)
+ * - "[F:Puntos]" → "$F$2" (fila fija de puntos)
+ * - "[E] / [E:Puntos] * 100" → "=E4/$E$2*100"
  */
 export const translateToExcelFormula = (
   customFormula: string,
@@ -58,14 +60,14 @@ export const translateToExcelFormula = (
   
   let excelFormula = customFormula;
   
-  // PASO 1: Reemplazar [Columna:Puntos] → $LETRA$2 (referencia absoluta a fila de puntos)
+  // PASO 1: Reemplazar [ID:Puntos] → $LETRA$2 (referencia absoluta a fila de puntos)
   excelFormula = excelFormula.replace(
     /\[([^\]]+):Puntos\]/g,
-    (_, columnName) => {
-      const columnLetter = columnMap.get(columnName.trim());
+    (_, columnId) => {
+      const columnLetter = columnMap.get(columnId.trim());
       
       if (!columnLetter) {
-        console.warn(`Columna "${columnName}" no encontrada en la configuración al traducir fórmula`);
+        console.warn(`Columna con ID "${columnId}" no encontrada en la configuración al traducir fórmula`);
         return '0'; // Valor por defecto si no se encuentra
       }
       
@@ -74,14 +76,14 @@ export const translateToExcelFormula = (
     }
   );
   
-  // PASO 2: Reemplazar [Columna:Valor] → LETRA + rowNumber (referencia relativa)
+  // PASO 2: Reemplazar [ID:Valor] → LETRA + rowNumber (referencia relativa)
   excelFormula = excelFormula.replace(
     /\[([^\]]+):Valor\]/g,
-    (_, columnName) => {
-      const columnLetter = columnMap.get(columnName.trim());
+    (_, columnId) => {
+      const columnLetter = columnMap.get(columnId.trim());
       
       if (!columnLetter) {
-        console.warn(`Columna "${columnName}" no encontrada en la configuración al traducir fórmula`);
+        console.warn(`Columna con ID "${columnId}" no encontrada en la configuración al traducir fórmula`);
         return '0';
       }
       
@@ -90,15 +92,15 @@ export const translateToExcelFormula = (
     }
   );
   
-  // PASO 3: Reemplazar [Columna] (sin especificar tipo) → LETRA + rowNumber
-  // Por defecto, [Columna] equivale a [Columna:Valor]
+  // PASO 3: Reemplazar [ID] (sin especificar tipo) → LETRA + rowNumber
+  // Por defecto, [ID] equivale a [ID:Valor]
   excelFormula = excelFormula.replace(
     /\[([^\]]+)\]/g,
-    (_, columnName) => {
-      const columnLetter = columnMap.get(columnName.trim());
+    (_, columnId) => {
+      const columnLetter = columnMap.get(columnId.trim());
       
       if (!columnLetter) {
-        console.warn(`Columna "${columnName}" no encontrada en la configuración al traducir fórmula`);
+        console.warn(`Columna con ID "${columnId}" no encontrada en la configuración al traducir fórmula`);
         return '0';
       }
       
@@ -120,7 +122,7 @@ export const translateToExcelFormula = (
  * 
  * @param excelFormula - Fórmula Excel (ej: "=E4/$E$2*100")
  * @param columnConfig - Configuración completa de columnas
- * @returns Fórmula personalizada (ej: "[Examen1] / [Examen1:Puntos] * 100")
+ * @returns Fórmula personalizada (ej: "[E] / [E:Puntos] * 100")
  * 
  * NOTA: Esta función es para importación futura. Por ahora, las fórmulas
  * se leen de la hoja de configuración, no de las celdas.
@@ -138,43 +140,43 @@ export const translateFromExcelFormula = (
     ? excelFormula.substring(1) 
     : excelFormula;
 
-  // Construir mapa inverso: letra Excel → nombre de columna
-  const letterToColumnMap = new Map<string, string>();
+  // Construir mapa inverso: letra Excel → ID (que ya es la letra)
+  const letterToColumnIdMap = new Map<string, string>();
   columnConfig.forEach(group => {
     group.columns.forEach(col => {
-      if (col.label && col.id) {
-        letterToColumnMap.set(col.id, col.label);
+      if (col.id) {
+        letterToColumnIdMap.set(col.id, col.id);
       }
     });
   });
 
-  // PASO 1: Reemplazar referencias absolutas $LETRA$2 → [Columna:Puntos]
+  // PASO 1: Reemplazar referencias absolutas $LETRA$2 → [ID:Puntos]
   customFormula = customFormula.replace(
     /\$([A-Z]+)\$2/g,
     (_, letter) => {
-      const columnName = letterToColumnMap.get(letter);
+      const columnId = letterToColumnIdMap.get(letter);
       
-      if (!columnName) {
+      if (!columnId) {
         console.warn(`Letra de columna "${letter}" no encontrada al traducir desde Excel`);
         return '0';
       }
       
-      return `[${columnName}:Puntos]`;
+      return `[${columnId}:Puntos]`;
     }
   );
 
-  // PASO 2: Reemplazar referencias relativas LETRA+número → [Columna]
+  // PASO 2: Reemplazar referencias relativas LETRA+número → [ID]
   customFormula = customFormula.replace(
     /([A-Z]+)(\d+)/g,
     (_, letter) => {
-      const columnName = letterToColumnMap.get(letter);
+      const columnId = letterToColumnIdMap.get(letter);
       
-      if (!columnName) {
+      if (!columnId) {
         console.warn(`Letra de columna "${letter}" no encontrada al traducir desde Excel`);
         return '0';
       }
       
-      return `[${columnName}]`;
+      return `[${columnId}]`;
     }
   );
 

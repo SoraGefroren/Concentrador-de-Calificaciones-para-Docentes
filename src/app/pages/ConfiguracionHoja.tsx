@@ -129,11 +129,12 @@ const ConfiguracionHoja = () => {
 
   // Nueva función: Obtener todas las columnas con información de grupo
   const getAllColumnsWithGroupInfo = () => {
-    const columns: Array<{label: string, groupType: string, groupLabel: string, groupColor?: string, tipoValor?: TipoValor | null, points?: number | null}> = [];
+    const columns: Array<{id: string, label: string, groupType: string, groupLabel: string, groupColor?: string, tipoValor?: TipoValor | null, points?: number | null}> = [];
     columnConfig.forEach(group => {
       group.columns.forEach(col => {
-        if (col.label && col.label.trim() !== '') {
+        if (col.id && col.label && col.label.trim() !== '') {
           columns.push({
+            id: col.id,
             label: col.label,
             groupType: group.type || 'columns',
             groupLabel: group.label || '',
@@ -199,7 +200,7 @@ const ConfiguracionHoja = () => {
     // 0. Validar que todas las partes sean válidas (tokens reconocidos)
     for (const part of parts) {
       if (!isOperator(part) && !isParenthesis(part) && !isValue(part)) {
-        return { isValid: false, error: `Token inválido: "${part}". Solo se permiten columnas [Nombre], números, operadores (+,-,*,/) y paréntesis` };
+        return { isValid: false, error: `Token inválido: "${part}". Solo se permiten columnas [ID] (ej: [C]), números, operadores (+,-,*,/) y paréntesis` };
       }
     }
 
@@ -227,39 +228,39 @@ const ConfiguracionHoja = () => {
       if (isColumn(part)) {
         const content = part.slice(1, -1); // Quitar [ ]
         
-        // Validar que el nombre de la columna no esté vacío
+        // Validar que el ID de la columna no esté vacío
         if (!content || content.trim() === '') {
-          return { isValid: false, error: `Columna vacía: "[]" no es válida. Use formato: [NombreColumna]` };
+          return { isValid: false, error: `Columna vacía: "[]" no es válida. Use formato: [ID] (ej: [C])` };
         }
         
-        // Parsear la referencia: [Columna] o [Columna:Valor] o [Columna:Puntos]
-        let columnLabel: string;
+        // Parsear la referencia: [ID] o [ID:Valor] o [ID:Puntos]
+        let columnId: string;
         let refType: 'Valor' | 'Puntos' = 'Valor';
         
         if (content.includes(':')) {
           const splitParts = content.split(':');
-          columnLabel = splitParts[0].trim();
+          columnId = splitParts[0].trim();
           const refTypeStr = splitParts[1]?.trim();
           refType = (refTypeStr === 'Puntos' ? 'Puntos' : 'Valor');
         } else {
-          columnLabel = content.trim();
+          columnId = content.trim();
         }
         
-        const col = allColumns.find(c => c.label === columnLabel);
+        const col = allColumns.find(c => c.id === columnId);
         
         if (!col) {
-          return { isValid: false, error: `La columna "${columnLabel}" no existe. Verifique el nombre.` };
+          return { isValid: false, error: `La columna con ID "${columnId}" no existe. Verifique el ID.` };
         }
         
         // Si la referencia es :Puntos, validar que la columna tenga puntos
         if (refType === 'Puntos') {
           if (col.points === null || col.points === undefined) {
-            return { isValid: false, error: `La columna "${columnLabel}" no tiene puntos configurados. No se puede usar [${columnLabel}:Puntos]` };
+            return { isValid: false, error: `La columna "${col.label}" (${columnId}) no tiene puntos configurados. No se puede usar [${columnId}:Puntos]` };
           }
         } else {
           // Si la referencia es :Valor (o sin especificar), validar que sea numérica
           if (col.tipoValor && col.tipoValor !== 'Número') {
-            return { isValid: false, error: `La columna "${columnLabel}" es de tipo ${col.tipoValor}, no Número` };
+            return { isValid: false, error: `La columna "${col.label}" (${columnId}) es de tipo ${col.tipoValor}, no Número` };
           }
         }
       }

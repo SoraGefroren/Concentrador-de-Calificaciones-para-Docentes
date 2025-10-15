@@ -1,9 +1,11 @@
 /**
  * Evaluador de fórmulas para columnas calculadas
  * 
- * Este módulo procesa fórmulas que referencian columnas y puntos:
- * - [Columna] o [Columna:Valor] → Valor de la celda del estudiante
- * - [Columna:Puntos] → Puntos máximos configurados para esa columna
+ * Este módulo procesa fórmulas que referencian columnas por ID y puntos:
+ * - [ID] o [ID:Valor] → Valor de la celda del estudiante (ej: [C])
+ * - [ID:Puntos] → Puntos máximos configurados para esa columna (ej: [C:Puntos])
+ * 
+ * El ID corresponde a la letra de la columna en Excel (A, B, C, etc.)
  */
 
 import type { ColumnExcelData, ColumnGroupConfig } from '../hooks/useExcelData';
@@ -16,7 +18,7 @@ export interface FormulaEvaluationContext {
 /**
  * Evalúa una fórmula y retorna el resultado numérico
  * 
- * @param formula - Fórmula a evaluar (ej: "[Examen1] / [Examen1:Puntos] * 100")
+ * @param formula - Fórmula a evaluar (ej: "[E] / [E:Puntos] * 100")
  * @param context - Contexto con datos del estudiante y configuración
  * @returns Resultado numérico o null si hay error
  */
@@ -49,7 +51,8 @@ export const evaluateFormula = (
 };
 
 /**
- * Reemplaza referencias [Columna] y [Columna:Puntos] por valores numéricos
+ * Reemplaza referencias [ID] y [ID:Puntos] por valores numéricos
+ * Ejemplo: [C] → valor de columna C, [C:Puntos] → puntos máximos de columna C
  */
 const replaceFormulaReferences = (
   formula: string,
@@ -57,12 +60,12 @@ const replaceFormulaReferences = (
 ): string => {
   const { studentData, columnConfig } = context;
   
-  // Crear mapa de columnas para acceso rápido
-  const columnMap = new Map<string, { points: number | null }>();
+  // Crear mapa de columnas para acceso rápido (por ID)
+  const columnMap = new Map<string, { label: string, points: number | null }>();
   columnConfig.forEach(group => {
     group.columns.forEach(col => {
-      if (col.label) {
-        columnMap.set(col.label, { points: col.points });
+      if (col.id && col.label) {
+        columnMap.set(col.id, { label: col.label, points: col.points });
       }
     });
   });
@@ -73,32 +76,40 @@ const replaceFormulaReferences = (
   return formula.replace(referencePattern, (_match, content) => {
     const trimmedContent = content.trim();
     
-    // Parsear: "Columna" o "Columna:Valor" o "Columna:Puntos"
-    let columnName: string;
+    // Parsear: "ID" o "ID:Valor" o "ID:Puntos"
+    // Ejemplo: "C" o "C:Valor" o "C:Puntos"
+    let columnId: string;
     let refType: 'Valor' | 'Puntos' = 'Valor';
     
     if (trimmedContent.includes(':')) {
       const parts = trimmedContent.split(':');
-      columnName = parts[0].trim();
+      columnId = parts[0].trim();
       const typeStr = parts[1]?.trim();
       refType = typeStr === 'Puntos' ? 'Puntos' : 'Valor';
     } else {
-      columnName = trimmedContent;
+      columnId = trimmedContent;
+    }
+
+    // Buscar la columna por ID
+    const colInfo = columnMap.get(columnId);
+    
+    if (!colInfo) {
+      console.warn(`Columna con ID "${columnId}" no encontrada en la configuración`);
+      return '0';
     }
 
     // Obtener el valor correspondiente
     if (refType === 'Puntos') {
       // Buscar los puntos configurados
-      const colInfo = columnMap.get(columnName);
-      if (colInfo && colInfo.points !== null && colInfo.points !== undefined) {
+      if (colInfo.points !== null && colInfo.points !== undefined) {
         return colInfo.points.toString();
       } else {
-        console.warn(`Columna "${columnName}" no tiene puntos configurados`);
+        console.warn(`Columna "${colInfo.label}" (${columnId}) no tiene puntos configurados`);
         return '0';
       }
     } else {
-      // Buscar el valor en los datos del estudiante
-      const value = studentData[columnName];
+      // Buscar el valor en los datos del estudiante usando el label
+      const value = studentData[colInfo.label];
       
       if (value === null || value === undefined || value === '') {
         // Si no hay valor, usar 0 para evitar errores
@@ -109,7 +120,7 @@ const replaceFormulaReferences = (
       const numValue = typeof value === 'number' ? value : parseFloat(String(value));
       
       if (isNaN(numValue)) {
-        console.warn(`Valor no numérico en columna "${columnName}": ${value}`);
+        console.warn(`Valor no numérico en columna "${colInfo.label}" (${columnId}): ${value}`);
         return '0';
       }
       

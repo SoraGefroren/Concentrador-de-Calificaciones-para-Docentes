@@ -5,6 +5,7 @@ import { InputText } from 'primereact/inputtext';
 import { Card } from 'primereact/card';
 
 interface ColumnInfo {
+  id: string; // ID de la columna (letra Excel: A, B, C, etc.)
   label: string;
   groupType: string; // 'info', 'period', 'columns'
   groupLabel: string;
@@ -107,20 +108,21 @@ const FormulaEditor = ({
     const isColumn = (p: string) => p.startsWith('[') && p.endsWith(']');
     const isValue = (p: string) => isNumber(p) || isColumn(p);
     
-    // Función helper para extraer el nombre de columna y el tipo de referencia
-    const parseColumnReference = (colRef: string): { columnName: string, refType: 'Valor' | 'Puntos' } => {
-      // Formato: [Columna] o [Columna:Valor] o [Columna:Puntos]
+    // Función helper para extraer el ID de columna y el tipo de referencia
+    const parseColumnReference = (colRef: string): { columnId: string, refType: 'Valor' | 'Puntos' } => {
+      // Formato: [ID] o [ID:Valor] o [ID:Puntos]
+      // Ejemplo: [C] o [C:Valor] o [C:Puntos]
       const content = colRef.slice(1, -1); // Quitar [ ]
       
       if (content.includes(':')) {
-        const [columnName, refType] = content.split(':');
+        const [columnId, refType] = content.split(':');
         return {
-          columnName: columnName.trim(),
+          columnId: columnId.trim(),
           refType: (refType.trim() === 'Puntos' ? 'Puntos' : 'Valor') as 'Valor' | 'Puntos'
         };
       }
       
-      return { columnName: content.trim(), refType: 'Valor' };
+      return { columnId: content.trim(), refType: 'Valor' };
     };
     
     // 1. Validar paréntesis balanceados
@@ -193,24 +195,24 @@ const FormulaEditor = ({
     // 5. Validar que solo se usen columnas numéricas (no texto) y referencias válidas
     for (const part of parts) {
       if (isColumn(part)) {
-        const { columnName, refType } = parseColumnReference(part);
+        const { columnId, refType } = parseColumnReference(part);
         
-        // Buscar la columna (incluyendo la columna actual si se permite)
-        const col = availableColumns.find(c => c.label === columnName);
+        // Buscar la columna por ID
+        const col = availableColumns.find(c => c.id === columnId);
         
         if (!col) {
-          return `Error: La columna "${columnName}" no existe`;
+          return `Error: La columna con ID "${columnId}" no existe`;
         }
         
         // Si la referencia es :Puntos, validar que la columna tenga puntos configurados
         if (refType === 'Puntos') {
           if (col.points === null || col.points === undefined) {
-            return `Error: La columna "${columnName}" no tiene puntos configurados. No se puede usar [${columnName}:Puntos]`;
+            return `Error: La columna "${col.label}" (${columnId}) no tiene puntos configurados. No se puede usar [${columnId}:Puntos]`;
           }
         } else {
           // Si la referencia es :Valor (o sin especificar), validar que sea numérica
           if (col.tipoValor && col.tipoValor !== 'Número') {
-            return `Error: La columna "${columnName}" es de tipo ${col.tipoValor}. Solo se permiten columnas numéricas en fórmulas`;
+            return `Error: La columna "${col.label}" (${columnId}) es de tipo ${col.tipoValor}. Solo se permiten columnas numéricas en fórmulas`;
           }
         }
       }
@@ -226,10 +228,10 @@ const FormulaEditor = ({
   }, [formulaParts, validateFormula]);
 
   // Agregar una columna a la fórmula (con tipo de referencia: Valor o Puntos)
-  const addColumnToFormula = (columnLabel: string, refType: 'Valor' | 'Puntos' = 'Valor') => {
+  const addColumnToFormula = (columnId: string, refType: 'Valor' | 'Puntos' = 'Valor') => {
     const reference = refType === 'Puntos' 
-      ? `[${columnLabel}:Puntos]` 
-      : `[${columnLabel}]`; // Por defecto usa [Columna] que equivale a :Valor
+      ? `[${columnId}:Puntos]` 
+      : `[${columnId}]`; // Por defecto usa [ID] que equivale a :Valor
     const newParts = [...formulaParts, reference];
     setFormulaParts(newParts);
   };
@@ -388,10 +390,10 @@ const FormulaEditor = ({
                           {grouped.info.map((col, index) => (
                             <div key={`info-${index}`} className="flex gap-1">
                               <Button
-                                onClick={() => addColumnToFormula(col.label, 'Valor')}
+                                onClick={() => addColumnToFormula(col.id, 'Valor')}
                                 className="flex-1 p-button-sm p-button-outlined text-left justify-start text-xs"
                                 style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#6b7280' }}
-                                title={`Agregar valor de ${col.label}`}
+                                title={`Agregar valor de ${col.label} (${col.id})`}
                               >
                                 <div className="flex items-center gap-2 w-full">
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
@@ -406,7 +408,7 @@ const FormulaEditor = ({
                               </Button>
                               {col.points !== null && col.points !== undefined && (
                                 <Button
-                                  onClick={() => addColumnToFormula(col.label, 'Puntos')}
+                                  onClick={() => addColumnToFormula(col.id, 'Puntos')}
                                   className="p-button-sm p-button-outlined text-xs px-2"
                                   style={{ padding: '0.4rem', minWidth: '32px' }}
                                   title={`Agregar puntos máximos de ${col.label} (${col.points})`}
@@ -430,10 +432,10 @@ const FormulaEditor = ({
                           {grouped.columns.map((col, index) => (
                             <div key={`col-${index}`} className="flex gap-1">
                               <Button
-                                onClick={() => addColumnToFormula(col.label, 'Valor')}
+                                onClick={() => addColumnToFormula(col.id, 'Valor')}
                                 className="flex-1 p-button-sm p-button-outlined text-left justify-start text-xs"
                                 style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#3b82f6' }}
-                                title={`Agregar valor de ${col.label}`}
+                                title={`Agregar valor de ${col.label} (${col.id})`}
                               >
                                 <div className="flex items-center gap-2 w-full">
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
@@ -448,7 +450,7 @@ const FormulaEditor = ({
                               </Button>
                               {col.points !== null && col.points !== undefined && (
                                 <Button
-                                  onClick={() => addColumnToFormula(col.label, 'Puntos')}
+                                  onClick={() => addColumnToFormula(col.id, 'Puntos')}
                                   className="p-button-sm p-button-outlined text-xs px-2"
                                   style={{ padding: '0.4rem', minWidth: '32px' }}
                                   title={`Agregar puntos máximos de ${col.label} (${col.points})`}
@@ -472,10 +474,10 @@ const FormulaEditor = ({
                           {grouped.period.map((col, index) => (
                             <div key={`period-${index}`} className="flex gap-1">
                               <Button
-                                onClick={() => addColumnToFormula(col.label, 'Valor')}
+                                onClick={() => addColumnToFormula(col.id, 'Valor')}
                                 className="flex-1 p-button-sm p-button-outlined text-left justify-start text-xs"
                                 style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#7c3aed' }}
-                                title={`Agregar valor de ${col.label}`}
+                                title={`Agregar valor de ${col.label} (${col.id})`}
                               >
                                 <div className="flex items-center gap-2 w-full">
                                   <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
@@ -492,7 +494,7 @@ const FormulaEditor = ({
                               </Button>
                               {col.points !== null && col.points !== undefined && (
                                 <Button
-                                  onClick={() => addColumnToFormula(col.label, 'Puntos')}
+                                  onClick={() => addColumnToFormula(col.id, 'Puntos')}
                                   className="p-button-sm p-button-outlined text-xs px-2"
                                   style={{ padding: '0.4rem', minWidth: '32px' }}
                                   title={`Agregar puntos máximos de ${col.label} (${col.points})`}
@@ -580,8 +582,11 @@ const FormulaEditor = ({
                 💡 Presione Enter para agregar
               </small>
               <small className="text-blue-600 text-xs block mt-2">
-                ℹ️ <strong>[Columna]</strong> = valor de la celda | 
-                <strong className="ml-1">[Columna:Puntos]</strong> = puntos máximos ⭐
+                ℹ️ <strong>[ID]</strong> = valor de la celda | 
+                <strong className="ml-1">[ID:Puntos]</strong> = puntos máximos ⭐
+              </small>
+              <small className="text-gray-500 text-xs block mt-1">
+                Ejemplo: [C] usa el valor, [C:Puntos] usa los puntos de la columna C
               </small>
             </Card>
           </div>
