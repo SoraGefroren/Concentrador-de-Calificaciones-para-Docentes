@@ -36,7 +36,6 @@ export const evaluateFormula = (
     
     // 2. Validar que solo contenga números, operadores y paréntesis
     if (!isValidMathExpression(processedFormula)) {
-      console.error('Expresión matemática inválida después de reemplazos:', processedFormula);
       return null;
     }
 
@@ -211,22 +210,6 @@ export const calculateFormulasForStudent = (
 };
 
 /**
- * Calcula valores de fórmulas para múltiples estudiantes
- * 
- * @param studentsData - Array de datos de estudiantes
- * @param columnConfig - Configuración completa de columnas
- * @returns Array actualizado con columnas calculadas
- */
-export const calculateFormulasForAllStudents = (
-  studentsData: ColumnExcelData[],
-  columnConfig: ColumnGroupConfig[]
-): ColumnExcelData[] => {
-  return studentsData.map(studentData => 
-    calculateFormulasForStudent(studentData, columnConfig)
-  );
-};
-
-/**
  * Calcula el valor de una sola columna con fórmula para un estudiante específico
  * Útil para cálculos individuales en tiempo real
  * 
@@ -240,9 +223,11 @@ export const calculateSingleColumnFormula = (
   columnLabel: string,
   columnConfig: ColumnGroupConfig[]
 ): number | null => {
+  debugger;
   // Buscar la columna en la configuración
   let targetColumn = null;
-  
+
+  // Buscar en todas las secciones por la LABEL
   for (const group of columnConfig) {
     const found = group.columns.find(col => col.label === columnLabel);
     if (found) {
@@ -253,7 +238,6 @@ export const calculateSingleColumnFormula = (
   
   // Si no se encuentra la columna, retornar null
   if (!targetColumn) {
-    console.warn(`⚠️ Columna "${columnLabel}" no encontrada en columnConfig`);
     return null;
   }
   
@@ -262,13 +246,6 @@ export const calculateSingleColumnFormula = (
     return null;
   }
   
-  // Log de depuración (descomenta para debuggear)
-  console.log(`🔢 Calculando fórmula para columna "${columnLabel}":`, {
-    formula: targetColumn.formula,
-    columnId: targetColumn.id,
-    isEditable: targetColumn.isEditable
-  });
-  
   // Evaluar la fórmula
   const context: FormulaEvaluationContext = {
     studentData,
@@ -276,12 +253,6 @@ export const calculateSingleColumnFormula = (
   };
   
   const result = evaluateFormula(targetColumn.formula, context);
-  
-  if (result !== null) {
-    console.log(`✅ Resultado calculado para "${columnLabel}":`, result);
-  } else {
-    console.error(`❌ Error al calcular fórmula para "${columnLabel}"`);
-  }
   
   return result;
 };

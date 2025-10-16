@@ -143,7 +143,7 @@ const DeleteStudentModal = ({
                         '', '', 'Encabezado', excelConfig.label
                     ]);
                     matrixConfigData.push([
-                        '', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable'
+                        '', '', '', 'Columna', 'Fecha', 'Puntos', 'Editable', 'Formula'
                     ]);
                     matrixConfigData.push([
                         '', '', '', excelConfig.id,
@@ -151,7 +151,8 @@ const DeleteStudentModal = ({
                         ((excelConfig.points == 0 || excelConfig.points)
                             ? excelConfig.points
                             : ''),
-                        (excelConfig.isEditable !== undefined ? (excelConfig.isEditable ? 'SI' : 'NO') : 'SI')
+                        (excelConfig.isEditable !== undefined ? (excelConfig.isEditable ? 'SI' : 'NO') : 'SI'),
+                        (excelConfig.formula || '')
                     ]);
                 });
                 // Se inserta marca para el fin del grupo de la configuración

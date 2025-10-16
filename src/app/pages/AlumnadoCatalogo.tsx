@@ -61,31 +61,30 @@ const AlumnadoCatalogo = () => {
     // Tomar la configuración de secciones izquierda, centro y derecha
     const groupSectionConfig = getSectionsColumnsConfig(columnConfig);
     
-    // Filtrar studentsExcelData basado en el término de búsqueda
-    const filteredStudentsExcelData = useMemo(() => {
-        if (!searchTerm.trim()) {
-            return studentsExcelData;
-        }
-        // Filtrar estudiantes que coincidan con el término de búsqueda en cualquier campo
-        return studentsExcelData.filter((student) => {
-            // Buscar en todos los campos del estudiante
-            return Object.values(student).some((value) => {
-                if (value === null || value === undefined) return false;
-                // Convertir a string y buscar (insensible a mayúsculas/minúsculas)
-                return String(value).toLowerCase().includes(searchTerm.toLowerCase());
-            });
-        });
-    }, [studentsExcelData, searchTerm]);
-
     // Crear dataset específico para el DataTable con fila de puntos + estudiantes filtrados
     // Se reactualiza automáticamente cuando cambian los datos de estudiantes o el término de búsqueda
     const tableDataExcelData = useMemo(() => {
+        // Filtrar studentsExcelData basado en el término de búsqueda
+        let rowsFilteredStudentsExcelData = [];
+        // Si no hay término de búsqueda, retornar todos los estudiantes
+        if (!searchTerm.trim()) {
+            rowsFilteredStudentsExcelData = studentsExcelData;
+        } else {
+            // Filtrar estudiantes que coincidan con el término de búsqueda en cualquier campo
+            rowsFilteredStudentsExcelData = studentsExcelData.filter((student) => {
+                // Buscar en todos los campos del estudiante
+                return Object.values(student).some((value) => {
+                    if (value === null || value === undefined) return false;
+                    // Convertir a string y buscar (insensible a mayúsculas/minúsculas)
+                    return String(value).toLowerCase().includes(searchTerm.toLowerCase());
+                });
+            });
+        }
         // Concatenar puntos (fila especial) + estudiantes filtrados
-        // Esto mantiene la fila especial pero de manera más explícita
-        // tableDataExcelData[0] = pointsExcelData (fila especial)
-        // tableDataExcelData[1...n] = filteredStudentsExcelData (estudiantes filtrados)
-        return [pointsExcelData, ...filteredStudentsExcelData].filter(Boolean);
-    }, [pointsExcelData, filteredStudentsExcelData]);
+        // > tableDataExcelData[0] = pointsExcelData (fila especial de PUNTOS)
+        // > tableDataExcelData[1...n] = rowsFilteredStudentsExcelData (estudiantes filtrados)
+        return [pointsExcelData, ...rowsFilteredStudentsExcelData].filter(Boolean);
+    }, [pointsExcelData, studentsExcelData, searchTerm]);
 
     
     // Campos de las secciones según la nueva lógica dinámica
@@ -154,17 +153,6 @@ const AlumnadoCatalogo = () => {
         });
     };
 
-    // Función helper para buscar si una columna tiene fórmula definida
-    const getColumnFormula = (columnLabel: string): string | null => {
-        for (const group of columnConfig) {
-            const col = group.columns.find(c => c.label === columnLabel);
-            if (col && col.formula && col.formula.trim() !== '') {
-                return col.formula;
-            }
-        }
-        return null;
-    };
-
     const columnContentShowBodyTemplate = (excelColumn: string) => {
         // Retornamos una función que recibe el rowData y rowIndex
         return (rowData: ColumnExcelData, props: { rowIndex: number }) => {
@@ -190,8 +178,17 @@ const AlumnadoCatalogo = () => {
                     return columnContentValueIdentifierTemplate(rowData, { field: excelColumn, rowIndex });    
                 }
                 
-                // PRIORIDAD 1: Verificar si la columna tiene una FÓRMULA definida
-                const columnFormula = getColumnFormula(excelColumn);
+                // PRIORIDAD 1: Buscar si una columna tiene FÓRMULA definida
+                const columnFormula = ((columnLabel: string): string | null => {
+                        for (const group of columnConfig) {
+                            const col = group.columns.find(c => c.label === columnLabel);
+                            if (col && col.formula && col.formula.trim() !== '') {
+                                return col.formula;
+                            }
+                        }
+                        return null;
+                    })(excelColumn);
+                // Verificar si la columna tiene una FÓRMULA definida
                 if (columnFormula) {
                     // Si tiene fórmula, calcular el valor en tiempo real
                     const calculatedValue = calculateSingleColumnFormula(rowData, excelColumn, columnConfig);

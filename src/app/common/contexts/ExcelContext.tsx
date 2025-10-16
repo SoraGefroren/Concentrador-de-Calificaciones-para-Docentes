@@ -17,12 +17,3 @@ export const useExcelContext = () => {
     // No lanzar error si no existe contexto, permitir uso opcional
     return context;
 };
-
-// Hook para uso obligatorio del contexto (para páginas que requieren datos)
-export const useRequiredExcelContext = () => {
-    const context = useContext(ExcelContext);
-    if (context === undefined) {
-        throw new Error('useRequiredExcelContext must be used within an ExcelProvider');
-    }
-    return context;
-};
