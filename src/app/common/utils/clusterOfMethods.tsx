@@ -1,6 +1,6 @@
 import FileUploadEvent from "../../features/adds/FileUploadEvent";
 import { DEFAULT_ACTIVITY_TEMPLATES, DEFAULT_FIXED_LEFT_HEADERS_COLS, DEFAULT_FIXED_LEFT_HEADERS_INFO, DEFAULT_FIXED_RIGHT_HEADERS_COLS, DEFAULT_FIXED_RIGHT_HEADERS_INFO } from "../../features/configuration/types/HeaderConfiguration";
-import { ColumnExcelData, useExcelData } from "../hooks/useExcelData";
+import { ColumnExcelData, useExcelData, PreviewColumnInfo } from "../hooks/useExcelData";
 import { ColumnExcelConfig, ColumnGroupConfig, typeColumnsGroup, typeInfoGroup, typePeriodGroup, TipoValor } from "../hooks/useExcelData";
 
 // Función para generar una configuración de columnas por defecto
@@ -392,4 +392,237 @@ export const generateDefaultColumnConfig = (): ColumnGroupConfig[] => {
 
   // Devolver la configuración generada
   return aryDefaultConfig;
+};
+
+/*
+ * FUNCIONES PARA VALIDACIÓN DE FÓRMULAS
+ */
+
+/**
+ * Parsea una fórmula string en un array de tokens/partes
+ * @param formula - La fórmula en formato string (ej: "[A] + [B] * 2")
+ * @returns Array de partes/tokens (ej: ["[A]", "+", "[B]", "*", "2"])
+ */
+export const parseFormulaToArray = (formula: string): string[] => {
+  if (!formula || formula.trim() === '') return [];
+  
+  const parts: string[] = [];
+  let currentToken = '';
+  let inBrackets = false;
+  
+  for (let i = 0; i < formula.length; i++) {
+    const char = formula[i];
+    
+    if (char === '[') {
+      if (currentToken.trim()) {
+        parts.push(currentToken.trim());
+        currentToken = '';
+      }
+      inBrackets = true;
+      currentToken = char;
+    } else if (char === ']') {
+      currentToken += char;
+      inBrackets = false;
+      parts.push(currentToken);
+      currentToken = '';
+    } else if (!inBrackets && ['+', '-', '*', '/', '(', ')'].includes(char)) {
+      if (currentToken.trim()) {
+        parts.push(currentToken.trim());
+        currentToken = '';
+      }
+      parts.push(char);
+    } else if (char !== ' ' || inBrackets) {
+      currentToken += char;
+    }
+  }
+  
+  if (currentToken.trim()) {
+    parts.push(currentToken.trim());
+  }
+  
+  return parts;
+};
+
+/**
+ * Convierte un array de partes de fórmula a string
+ * @param parts - Array de partes (ej: ["[A]", "+", "[B]"])
+ * @returns String de fórmula (ej: "[A] + [B]")
+ */
+export const arrayToFormulaString = (parts: string[]): string => {
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+};
+
+/**
+ * Extrae el ID de columna y el tipo de referencia de una referencia de columna
+ * @param colRef - Referencia de columna (ej: "[C]", "[C:Valor]", "[C:Puntos]")
+ * @returns Objeto con columnId y refType
+ */
+export const parseColumnReference = (colRef: string): { columnId: string, refType: 'Valor' | 'Puntos' } => {
+  // Formato: [ID] o [ID:Valor] o [ID:Puntos]
+  const content = colRef.slice(1, -1); // Quitar [ ]
+  
+  if (content.includes(':')) {
+    const [columnId, refType] = content.split(':');
+    return {
+      columnId: columnId.trim(),
+      refType: (refType.trim() === 'Puntos' ? 'Puntos' : 'Valor') as 'Valor' | 'Puntos'
+    };
+  }
+  
+  return { columnId: content.trim(), refType: 'Valor' };
+};
+
+/**
+ * Valida una fórmula completa (sintaxis, semántica y tipos)
+ * Función común que puede ser usada tanto en ConfiguracionHoja como en FormulaEditor
+ * 
+ * @param formula - La fórmula a validar (puede ser string o array de partes)
+ * @param availableColumns - Array de columnas disponibles para validar referencias
+ * @returns Objeto con isValid (boolean) y error (string con el mensaje de error)
+ */
+export const validateFormulaComplete = (
+  formula: string | string[],
+  availableColumns: PreviewColumnInfo[]
+): { isValid: boolean, error: string } => {
+  
+  // Si es string, parsearlo a array
+  const parts: string[] = typeof formula === 'string' 
+    ? parseFormulaToArray(formula) 
+    : formula;
+
+  // Si está vacío, es válido
+  if (parts.length === 0) {
+    return { isValid: true, error: '' };
+  }
+
+  // Funciones helper para identificar tipos de tokens
+  const isOperator = (p: string) => ['+', '-', '*', '/'].includes(p);
+  const isParenthesis = (p: string) => ['(', ')'].includes(p);
+  const isNumber = (p: string) => /^-?\d+(\.\d+)?$/.test(p);
+  const isColumn = (p: string) => p.startsWith('[') && p.endsWith(']') && p.length > 2;
+  const isValue = (p: string) => isNumber(p) || isColumn(p);
+
+  // 0. Validar que todas las partes sean tokens reconocidos
+  for (const part of parts) {
+    if (!isOperator(part) && !isParenthesis(part) && !isValue(part)) {
+      return { 
+        isValid: false, 
+        error: `Token inválido: "${part}". Solo se permiten columnas [ID] (ej: [C]), números, operadores (+,-,*,/) y paréntesis` 
+      };
+    }
+  }
+
+  // 1. Validar paréntesis balanceados
+  let parenthesisCount = 0;
+  for (const part of parts) {
+    if (part === '(') parenthesisCount++;
+    if (part === ')') parenthesisCount--;
+    if (parenthesisCount < 0) {
+      return { isValid: false, error: 'Error: Paréntesis de cierre sin apertura correspondiente' };
+    }
+  }
+  if (parenthesisCount !== 0) {
+    return { isValid: false, error: 'Error: Paréntesis no balanceados' };
+  }
+
+  // 2. Validar que no haya operadores consecutivos
+  for (let i = 0; i < parts.length - 1; i++) {
+    const current = parts[i];
+    const next = parts[i + 1];
+    
+    if (isOperator(current) && isOperator(next)) {
+      return { isValid: false, error: 'Error: Operadores consecutivos no permitidos' };
+    }
+    
+    // No puede terminar con operador
+    if (i === parts.length - 2 && isOperator(next)) {
+      return { isValid: false, error: 'Error: La fórmula no puede terminar con un operador' };
+    }
+  }
+
+  // 3. Validar que no empiece con operador binario
+  if (['+', '*', '/', ')'].includes(parts[0])) {
+    return { isValid: false, error: 'Error: La fórmula no puede comenzar con este operador' };
+  }
+
+  // 4. Validar secuencia lógica: valor-operador-valor
+  for (let i = 0; i < parts.length; i++) {
+    const current = parts[i];
+    const next = parts[i + 1];
+    
+    // Después de ( debe venir valor o - (negativo)
+    if (current === '(' && next && ['+', '*', '/', ')'].includes(next)) {
+      return { isValid: false, error: 'Error: Después de "(" no puede venir este operador' };
+    }
+    
+    // Antes de ) debe haber valor
+    if (next === ')' && ['+', '-', '*', '/', '('].includes(current)) {
+      return { isValid: false, error: 'Error: Antes de ")" debe haber un valor' };
+    }
+    
+    // Después de un valor debe venir operador o paréntesis de cierre
+    if (isValue(current) && next && !isOperator(next) && next !== ')') {
+      if (isValue(next)) {
+        return { 
+          isValid: false, 
+          error: 'Error: Falta operador entre valores (ej: debe ser "5 + [Col]" no "5 [Col]")' 
+        };
+      }
+    }
+    
+    // Después de operador debe venir valor o paréntesis de apertura
+    if (isOperator(current) && next && !isValue(next) && next !== '(') {
+      return { isValid: false, error: 'Error: Después de un operador debe venir un número o columna' };
+    }
+    
+    // Después de ) debe venir operador o ) (para cerrar anidados)
+    if (current === ')' && next && !isOperator(next) && next !== ')') {
+      return { isValid: false, error: 'Error: Después de ")" debe venir un operador' };
+    }
+  }
+
+  // 5. Validar que las columnas existan y sean del tipo correcto
+  for (const part of parts) {
+    if (isColumn(part)) {
+      const content = part.slice(1, -1); // Quitar [ ]
+      
+      // Validar que el ID de la columna no esté vacío
+      if (!content || content.trim() === '') {
+        return { isValid: false, error: 'Error: Referencia de columna vacía []' };
+      }
+      
+      const { columnId, refType } = parseColumnReference(part);
+      
+      // Buscar la columna por ID
+      const col = availableColumns.find(c => c.id === columnId);
+      
+      if (!col) {
+        return { 
+          isValid: false, 
+          error: `Error: La columna con ID "${columnId}" no existe` 
+        };
+      }
+      
+      // Si la referencia es :Puntos, validar que la columna tenga puntos
+      if (refType === 'Puntos') {
+        if (col.points === null || col.points === undefined) {
+          return { 
+            isValid: false, 
+            error: `Error: La columna "${col.label}" (${columnId}) no tiene puntos configurados. No se puede usar [${columnId}:Puntos]` 
+          };
+        }
+      } else {
+        // Si la referencia es :Valor (o sin especificar), validar que sea numérica
+        if (col.tipoValor && col.tipoValor !== 'Número') {
+          return { 
+            isValid: false, 
+            error: `Error: La columna "${col.label}" (${columnId}) es de tipo ${col.tipoValor}. Solo se permiten columnas numéricas en fórmulas` 
+          };
+        }
+      }
+    }
+  }
+
+  // Si pasó todas las validaciones
+  return { isValid: true, error: '' };
 };

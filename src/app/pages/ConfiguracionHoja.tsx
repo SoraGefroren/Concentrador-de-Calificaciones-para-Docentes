@@ -1,7 +1,7 @@
 import Menu from '../common/Menu.tsx';
 import { useRef, useState } from 'react';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
-import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup, TipoValor, tipoValorOptions} from '../common/hooks/useExcelData.tsx';
+import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup, TipoValor, tipoValorOptions, PreviewColumnInfo} from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
-import { getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel, recalculateConfigRanges, generateDefaultColumnConfig } from '../common/utils/clusterOfMethods.tsx';
+import { getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel, recalculateConfigRanges, generateDefaultColumnConfig, validateFormulaComplete } from '../common/utils/clusterOfMethods.tsx';
 import FormulaEditor from '../common/components/FormulaEditor.tsx';
 import { translateToExcelFormula } from '../common/utils/excelFormulaTranslator.tsx';
 import * as XLSX from 'xlsx';
@@ -61,148 +61,13 @@ const ConfiguracionHoja = () => {
   const [currentEditingColumn, setCurrentEditingColumn] = useState<{groupId: string, columnId: string, currentFormula: string, currentLabel: string} | null>(null);
   
   /*
-   * FUNCIONES PARA MANEJO DE FÓRMULAS CON REFERENCIAS
-   */
-  // Obtener todas las columnas con información de grupo
-  const getAllColumnsWithGroupInfo = () => {
-    const columns: Array<{id: string, label: string, groupType: string, groupLabel: string, groupColor?: string, tipoValor?: TipoValor | null, points?: number | null}> = [];
-    columnConfig.forEach(group => {
-      group.columns.forEach(col => {
-        if (col.id && col.label && col.label.trim() !== '') {
-          columns.push({
-            id: col.id,
-            label: col.label,
-            groupType: group.type || 'columns',
-            groupLabel: group.label || '',
-            groupColor: group.color || undefined,
-            tipoValor: col.tipoValor || null,
-            points: col.points || null
-          });
-        }
-      });
-    });
-    return columns;
-  };
-
-  /*
    * FUNCIONES PARA VALIDACIÓN DE FÓRMULAS
    */
 
   // Validar fórmula completa (sintaxis y tipos)
+  // Ahora usa la función común del módulo clusterOfMethods
   const validateFormulaString = (formula: string): { isValid: boolean, error: string } => {
-    if (!formula || formula.trim() === '') {
-      return { isValid: true, error: '' };
-    }
-
-    // Parser mejorado de fórmula
-    const parseFormula = (f: string): string[] => {
-      const parts: string[] = [];
-      let current = '';
-      let inBrackets = false;
-      
-      for (let i = 0; i < f.length; i++) {
-        const char = f[i];
-        if (char === '[') {
-          if (current.trim()) parts.push(current.trim());
-          current = char;
-          inBrackets = true;
-        } else if (char === ']') {
-          current += char;
-          inBrackets = false;
-          parts.push(current);
-          current = '';
-        } else if (!inBrackets && ['+', '-', '*', '/', '(', ')'].includes(char)) {
-          if (current.trim()) parts.push(current.trim());
-          parts.push(char);
-          current = '';
-        } else if (char !== ' ' || inBrackets) {
-          current += char;
-        }
-      }
-      if (current.trim()) parts.push(current.trim());
-      return parts;
-    };
-
-    const parts = parseFormula(formula);
-    const isOperator = (p: string) => ['+', '-', '*', '/'].includes(p);
-    const isParenthesis = (p: string) => ['(', ')'].includes(p);
-    const isNumber = (p: string) => {
-      // Validar que sea un número válido (puede tener punto decimal)
-      return /^-?\d+(\.\d+)?$/.test(p);
-    };
-    const isColumn = (p: string) => p.startsWith('[') && p.endsWith(']') && p.length > 2;
-    const isValue = (p: string) => isNumber(p) || isColumn(p);
-
-    // 0. Validar que todas las partes sean válidas (tokens reconocidos)
-    for (const part of parts) {
-      if (!isOperator(part) && !isParenthesis(part) && !isValue(part)) {
-        return { isValid: false, error: `Token inválido: "${part}". Solo se permiten columnas [ID] (ej: [C]), números, operadores (+,-,*,/) y paréntesis` };
-      }
-    }
-
-    // Validar secuencia semántica
-    for (let i = 0; i < parts.length; i++) {
-      const current = parts[i];
-      const next = parts[i + 1];
-
-      // Después de un valor debe venir operador o )
-      if (isValue(current) && next && !isOperator(next) && next !== ')') {
-        if (isValue(next)) {
-          return { isValid: false, error: 'Falta operador entre valores' };
-        }
-      }
-
-      // Después de operador debe venir valor o (
-      if (isOperator(current) && next && !isValue(next) && next !== '(') {
-        return { isValid: false, error: 'Después de operador debe venir valor' };
-      }
-    }
-
-    // 6. Validar que las columnas existan y sean del tipo correcto
-    const allColumns = getAllColumnsWithGroupInfo();
-    for (const part of parts) {
-      if (isColumn(part)) {
-        const content = part.slice(1, -1); // Quitar [ ]
-        
-        // Validar que el ID de la columna no esté vacío
-        if (!content || content.trim() === '') {
-          return { isValid: false, error: `Columna vacía: "[]" no es válida. Use formato: [ID] (ej: [C])` };
-        }
-        
-        // Parsear la referencia: [ID] o [ID:Valor] o [ID:Puntos]
-        let columnId: string;
-        let refType: 'Valor' | 'Puntos' = 'Valor';
-        
-        if (content.includes(':')) {
-          const splitParts = content.split(':');
-          columnId = splitParts[0].trim();
-          const refTypeStr = splitParts[1]?.trim();
-          refType = (refTypeStr === 'Puntos' ? 'Puntos' : 'Valor');
-        } else {
-          columnId = content.trim();
-        }
-        
-        const col = allColumns.find(c => c.id === columnId);
-        
-        if (!col) {
-          return { isValid: false, error: `La columna con ID "${columnId}" no existe. Verifique el ID.` };
-        }
-        
-        // Si la referencia es :Puntos, validar que la columna tenga puntos
-        if (refType === 'Puntos') {
-          if (col.points === null || col.points === undefined) {
-            return { isValid: false, error: `La columna "${col.label}" (${columnId}) no tiene puntos configurados. No se puede usar [${columnId}:Puntos]` };
-          }
-        } else {
-          // Si la referencia es :Valor (o sin especificar), validar que sea numérica
-          if (col.tipoValor && col.tipoValor !== 'Número') {
-            return { isValid: false, error: `La columna "${col.label}" (${columnId}) es de tipo ${col.tipoValor}, no Número` };
-          }
-        }
-      }
-    }
-
-    return { isValid: true, error: '' };
+    return validateFormulaComplete(formula, groupPreviewConfig);
   };
 
   /*
@@ -241,56 +106,6 @@ const ConfiguracionHoja = () => {
     setShowFormulaEditor(false);
     setCurrentEditingColumn(null);
   };
-
-  // Obtener todas las columnas que usan un label específico en sus fórmulas
-  const getColumnsUsingLabelInFormula = (oldLabel: string): Array<{groupId: string, columnId: string, formula: string}> => {
-    const results: Array<{groupId: string, columnId: string, formula: string}> = [];
-    const pattern = new RegExp(`\\[${oldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g');
-    
-    columnConfig.forEach(group => {
-      group.columns.forEach(col => {
-        if (col.formula && pattern.test(col.formula)) {
-          results.push({
-            groupId: group.id,
-            columnId: col.id,
-            formula: col.formula
-          });
-        }
-      });
-    });
-    return results;
-  };
-
-  // Actualizar fórmulas cuando cambia un label
-  const updateFormulasAfterLabelChange = (oldLabel: string, newLabel: string): void => {
-    if (!oldLabel || !newLabel || oldLabel === newLabel) return;
-    
-    const affectedColumns = getColumnsUsingLabelInFormula(oldLabel);
-    
-    if (affectedColumns.length > 0) {
-      const updatedConfig = [...columnConfig];
-      const pattern = new RegExp(`\\[${oldLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]`, 'g');
-      
-      affectedColumns.forEach(affected => {
-        const group = updatedConfig.find(g => g.id === affected.groupId);
-        if (group) {
-          const column = group.columns.find(c => c.id === affected.columnId);
-          if (column && column.formula) {
-            column.formula = column.formula.replace(pattern, `[${newLabel}]`);
-          }
-        }
-      });
-      
-      setConfig(updatedConfig);
-      
-      toast.current?.show({
-        severity: 'info',
-        summary: 'Fórmulas actualizadas',
-        detail: `Se actualizaron ${affectedColumns.length} fórmula(s) que referenciaban "${oldLabel}"`,
-        life: 4000
-      });
-    }
-  };
   
   /*
    * FUNCIONES DE APOYO A LA VISUALIZACIÓN
@@ -307,32 +122,24 @@ const ConfiguracionHoja = () => {
    * FUNCIONES DE APOYO A LA VISUALIZACIÓN
    */
   const groupPreviewConfiguration = () => {
-    const arrayTypeGroupConfig: Array<{
-      color: string;
-      position: string;
-      name: string;
-      date: string | null;
-      points: number | null;
-      editable: boolean | null;
-      tipoValor: TipoValor | null;
-      formula: string | null;
-      category: string;
-      detail: string;
-    }> = [];
+    const arrayTypeGroupConfig: Array<PreviewColumnInfo> = [];
     columnConfig.forEach(groupConfig => {
       // Se recorren las columnas que conforman al grupo
       groupConfig.columns.forEach(excelConfig => {
         arrayTypeGroupConfig.push({
-          color: groupConfig.color || '',
-          position: excelConfig.id,
-          name: excelConfig.label || '',
-          date: excelConfig.date || '',
+          // Propiedades de la columna (ColumnExcelConfig)
+          id: excelConfig.id,
+          label: excelConfig.label || '',
+          date: excelConfig.date || null,
           points: excelConfig.points,
-          editable: excelConfig.isEditable || false,
+          isEditable: excelConfig.isEditable || false,
           tipoValor: excelConfig.tipoValor || 'Texto',
           formula: excelConfig.formula || null,
-          category: groupConfig.type,
-          detail: groupConfig.label,
+          // Propiedades del grupo
+          groupId: groupConfig.id,
+          groupLabel: groupConfig.label,
+          groupColor: groupConfig.color || '',
+          groupType: groupConfig.type,
         });
       });
     });
@@ -548,9 +355,6 @@ const ConfiguracionHoja = () => {
       // Si se está actualizando el label, validar y actualizar fórmulas
       if (updates.label !== undefined) {
         // Obtener el label anterior
-        const group = columnConfig.find(g => g.id === groupId);
-        const column = group?.columns.find(c => c.id === columnId);
-        const oldLabel = column?.label || '';
         const newLabel = updates.label;
         // Validar que un label sea único
         const isLabelUnique = ((label: string, currentGroupId: string, currentColumnId: string): boolean => {
@@ -578,11 +382,6 @@ const ConfiguracionHoja = () => {
             detail: `Ya existe otra columna con el nombre "${newLabel}". Se recomienda usar nombres únicos para evitar confusión en las fórmulas.`,
             life: 5000
           });
-        }
-        
-        // Actualizar fórmulas que referencian el label anterior
-        if (oldLabel && newLabel && oldLabel !== newLabel) {
-          updateFormulasAfterLabelChange(oldLabel, newLabel);
         }
       }
       
@@ -1872,7 +1671,7 @@ const ConfiguracionHoja = () => {
         onHide={handleCancelFormulaEdit}
         currentFormula={currentEditingColumn?.currentFormula || ''}
         currentColumnLabel={currentEditingColumn?.currentLabel}
-        availableColumns={getAllColumnsWithGroupInfo()}
+        availableColumns={groupPreviewConfig}
       />
     </>
   );

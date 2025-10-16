@@ -1,25 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Dialog } from 'primereact/dialog';
 import { Button } from 'primereact/button';
+import { PreviewColumnInfo } from '../hooks/useExcelData';
 import { InputText } from 'primereact/inputtext';
 import { Card } from 'primereact/card';
+import { validateFormulaComplete, parseFormulaToArray, arrayToFormulaString } from '../utils/clusterOfMethods';
 
-interface ColumnInfo {
-  id: string; // ID de la columna (letra Excel: A, B, C, etc.)
-  label: string;
-  groupType: string; // 'info', 'period', 'columns'
-  groupLabel: string;
-  groupColor?: string; // Color del grupo (opcional)
-  tipoValor?: 'Texto' | 'Email' | 'Número' | null; // Tipo de dato de la columna
-  points?: number | null; // Puntos máximos de la columna (si aplica)
-}
 
 interface FormulaEditorProps {
   visible: boolean;
   onHide: () => void;
   onSave: (formula: string) => void;
   currentFormula: string;
-  availableColumns: ColumnInfo[];
+  availableColumns: PreviewColumnInfo[];
   currentColumnLabel?: string;
 }
 
@@ -37,6 +30,7 @@ const FormulaEditor = ({
   const [validationError, setValidationError] = useState<string>('');
 
   // Efecto para parsear la fórmula cuando cambie
+  // Ahora usa la función común del módulo clusterOfMethods
   useEffect(() => {
     if (visible && currentFormula) {
       setFormulaParts(parseFormulaToArray(currentFormula));
@@ -46,179 +40,14 @@ const FormulaEditor = ({
   }, [visible, currentFormula]);
 
   /*
-   * FUNCIONES DE PARSING Y CONVERSIÓN
-   */
-
-  // Convertir una fórmula string en array de partes
-  const parseFormulaToArray = (formula: string): string[] => {
-    if (!formula) return [];
-    
-    const parts: string[] = [];
-    let currentToken = '';
-    let inBrackets = false;
-    
-    for (let i = 0; i < formula.length; i++) {
-      const char = formula[i];
-      
-      if (char === '[') {
-        if (currentToken.trim()) {
-          parts.push(currentToken.trim());
-          currentToken = '';
-        }
-        inBrackets = true;
-        currentToken = char;
-      } else if (char === ']') {
-        currentToken += char;
-        inBrackets = false;
-        parts.push(currentToken);
-        currentToken = '';
-      } else if (!inBrackets && (char === '+' || char === '-' || char === '*' || char === '/' || char === '(' || char === ')')) {
-        if (currentToken.trim()) {
-          parts.push(currentToken.trim());
-          currentToken = '';
-        }
-        parts.push(char);
-      } else {
-        currentToken += char;
-      }
-    }
-    
-    if (currentToken.trim()) {
-      parts.push(currentToken.trim());
-    }
-    
-    return parts;
-  };
-
-  // Convertir array de partes a fórmula string
-  const arrayToFormulaString = (parts: string[]): string => {
-    return parts.join(' ').replace(/\s+/g, ' ').trim();
-  };
-
-  /*
    * FUNCIONES PARA MANIPULAR LA FÓRMULA
    */
 
   // Validar fórmula matemáticamente con validación de tipos
+  // Ahora usa la función común del módulo clusterOfMethods
   const validateFormula = useCallback((parts: string[]): string => {
-    if (parts.length === 0) return '';
-    
-    const isOperator = (p: string) => ['+', '-', '*', '/'].includes(p);
-    const isNumber = (p: string) => !isNaN(Number(p));
-    const isColumn = (p: string) => p.startsWith('[') && p.endsWith(']');
-    const isValue = (p: string) => isNumber(p) || isColumn(p);
-    
-    // Función helper para extraer el ID de columna y el tipo de referencia
-    const parseColumnReference = (colRef: string): { columnId: string, refType: 'Valor' | 'Puntos' } => {
-      // Formato: [ID] o [ID:Valor] o [ID:Puntos]
-      // Ejemplo: [C] o [C:Valor] o [C:Puntos]
-      const content = colRef.slice(1, -1); // Quitar [ ]
-      
-      if (content.includes(':')) {
-        const [columnId, refType] = content.split(':');
-        return {
-          columnId: columnId.trim(),
-          refType: (refType.trim() === 'Puntos' ? 'Puntos' : 'Valor') as 'Valor' | 'Puntos'
-        };
-      }
-      
-      return { columnId: content.trim(), refType: 'Valor' };
-    };
-    
-    // 1. Validar paréntesis balanceados
-    let parenthesisCount = 0;
-    for (const part of parts) {
-      if (part === '(') parenthesisCount++;
-      if (part === ')') parenthesisCount--;
-      if (parenthesisCount < 0) {
-        return 'Error: Paréntesis de cierre sin apertura correspondiente';
-      }
-    }
-    if (parenthesisCount !== 0) {
-      return 'Error: Paréntesis no balanceados';
-    }
-
-    // 2. Validar que no haya operadores consecutivos
-    for (let i = 0; i < parts.length - 1; i++) {
-      const current = parts[i];
-      const next = parts[i + 1];
-      
-      if (isOperator(current) && isOperator(next)) {
-        return 'Error: Operadores consecutivos no permitidos';
-      }
-      
-      // No puede terminar con operador
-      if (i === parts.length - 2 && isOperator(next)) {
-        return 'Error: La fórmula no puede terminar con un operador';
-      }
-    }
-
-    // 3. Validar que no empiece con operador binario
-    if (['+', '*', '/', ')'].includes(parts[0])) {
-      return 'Error: La fórmula no puede comenzar con este operador';
-    }
-
-    // 4. Validar secuencia lógica: valor-operador-valor
-    for (let i = 0; i < parts.length; i++) {
-      const current = parts[i];
-      const next = parts[i + 1];
-      
-      // Después de ( debe venir valor o - (negativo)
-      if (current === '(' && next && ['+', '*', '/', ')'].includes(next)) {
-        return 'Error: Después de "(" no puede venir este operador';
-      }
-      
-      // Antes de ) debe haber valor
-      if (next === ')' && ['+', '-', '*', '/', '('].includes(current)) {
-        return 'Error: Antes de ")" debe haber un valor';
-      }
-      
-      // VALIDACIÓN SEMÁNTICA: Después de un valor debe venir operador o paréntesis de cierre
-      if (isValue(current) && next && !isOperator(next) && next !== ')') {
-        // Si el siguiente tampoco es un operador ni paréntesis, es un error
-        if (isValue(next)) {
-          return 'Error: Falta operador entre valores (ej: debe ser "5 + [Col]" no "5 [Col]")';
-        }
-      }
-      
-      // VALIDACIÓN SEMÁNTICA: Después de operador debe venir valor o paréntesis de apertura
-      if (isOperator(current) && next && !isValue(next) && next !== '(') {
-        return 'Error: Después de un operador debe venir un número o columna';
-      }
-      
-      // Después de ) debe venir operador o ) (para cerrar anidados)
-      if (current === ')' && next && !isOperator(next) && next !== ')') {
-        return 'Error: Después de ")" debe venir un operador';
-      }
-    }
-
-    // 5. Validar que solo se usen columnas numéricas (no texto) y referencias válidas
-    for (const part of parts) {
-      if (isColumn(part)) {
-        const { columnId, refType } = parseColumnReference(part);
-        
-        // Buscar la columna por ID
-        const col = availableColumns.find(c => c.id === columnId);
-        
-        if (!col) {
-          return `Error: La columna con ID "${columnId}" no existe`;
-        }
-        
-        // Si la referencia es :Puntos, validar que la columna tenga puntos configurados
-        if (refType === 'Puntos') {
-          if (col.points === null || col.points === undefined) {
-            return `Error: La columna "${col.label}" (${columnId}) no tiene puntos configurados. No se puede usar [${columnId}:Puntos]`;
-          }
-        } else {
-          // Si la referencia es :Valor (o sin especificar), validar que sea numérica
-          if (col.tipoValor && col.tipoValor !== 'Número') {
-            return `Error: La columna "${col.label}" (${columnId}) es de tipo ${col.tipoValor}. Solo se permiten columnas numéricas en fórmulas`;
-          }
-        }
-      }
-    }
-
-    return ''; // Fórmula válida
+    const result = validateFormulaComplete(parts, availableColumns);
+    return result.error; // Retorna solo el error (vacío si es válido)
   }, [availableColumns]);
 
   // Actualizar validación cada vez que cambian las partes
@@ -279,18 +108,8 @@ const FormulaEditor = ({
   };
 
   // Ya NO filtrar la columna actual - permitir autorreferencia
-  const getFilteredColumns = (): ColumnInfo[] => {
+  const getFilteredColumns = (): PreviewColumnInfo[] => {
     return availableColumns; // Devolver todas las columnas, incluyendo la actual
-  };
-
-  // Agrupar columnas por tipo
-  const getColumnsByType = () => {
-    const filtered = getFilteredColumns();
-    return {
-      info: filtered.filter(col => col.groupType === 'info'),
-      columns: filtered.filter(col => col.groupType === 'columns'),
-      period: filtered.filter(col => col.groupType === 'period')
-    };
   };
 
   // Obtener color de badge según el tipo de grupo
@@ -377,138 +196,94 @@ const FormulaEditor = ({
             <h4 className="font-semibold text-sm mb-3">📋 Seleccionar columnas:</h4>
             <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
               {(() => {
-                const grouped = getColumnsByType();
+                // Mantener el orden original de availableColumns
+                const columns = getFilteredColumns();
+                
+                // Agrupar columnas consecutivas del mismo grupo para mostrar separadores visuales
+                const groupedSections: Array<{groupId: string, groupLabel: string, groupType: string, columns: PreviewColumnInfo[]}> = [];
+                let currentSection: {groupId: string, groupLabel: string, groupType: string, columns: PreviewColumnInfo[]} | null = null;
+                
+                columns.forEach((col) => {
+                  if (!currentSection || currentSection.groupId !== col.groupId) {
+                    // Nuevo grupo detectado
+                    if (currentSection) {
+                      groupedSections.push(currentSection);
+                    }
+                    currentSection = {
+                      groupId: col.groupId,
+                      groupLabel: col.groupLabel,
+                      groupType: col.groupType,
+                      columns: [col]
+                    };
+                  } else {
+                    // Mismo grupo, agregar columna
+                    currentSection.columns.push(col);
+                  }
+                });
+                
+                // Agregar la última sección
+                if (currentSection) {
+                  groupedSections.push(currentSection);
+                }
+                
+                // Función helper para obtener el ícono según el tipo
+                const getGroupIcon = (type: string): string => {
+                  switch(type) {
+                    case 'info': return '📊';
+                    case 'columns': return '📌';
+                    case 'period': return '📅';
+                    default: return '📋';
+                  }
+                };
+                
                 return (
                   <>
-                    {/* Columnas de Info */}
-                    {grouped.info.length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b">
-                          📊 Columnas de Información
-                        </div>
-                        <div className="space-y-1">
-                          {grouped.info.map((col, index) => (
-                            <div key={`info-${index}`} className="flex gap-1">
-                              <Button
-                                onClick={() => addColumnToFormula(col.id, 'Valor')}
-                                className="flex-1 p-button-sm p-button-outlined text-left justify-start text-xs"
-                                style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#6b7280' }}
-                                title={`Agregar valor de ${col.label} (${col.id})`}
-                              >
-                                <div className="flex items-center gap-2 w-full">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
-                                    {getGroupTypeLabel(col.groupType)}
-                                  </span>
-                                  <span className="flex-1 truncate">{col.label}</span>
-                                  {col.label === currentColumnLabel && (
-                                    <span className="text-[10px] text-blue-600 font-bold">📍</span>
-                                  )}
-                                  <i className="pi pi-plus text-[10px]"></i>
-                                </div>
-                              </Button>
-                              {col.points !== null && col.points !== undefined && (
+                    {groupedSections.length > 0 ? (
+                      groupedSections.map((section, sectionIndex) => (
+                        <div key={`section-${sectionIndex}`}>
+                          {/* Encabezado del grupo */}
+                          <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b flex items-center gap-1">
+                            <span>{getGroupIcon(section.groupType)}</span>
+                            <span>{section.groupLabel}</span>
+                          </div>
+                          
+                          {/* Columnas del grupo */}
+                          <div className="space-y-1">
+                            {section.columns.map((col, colIndex) => (
+                              <div key={`${section.groupId}-${colIndex}`} className="flex gap-1">
                                 <Button
-                                  onClick={() => addColumnToFormula(col.id, 'Puntos')}
-                                  className="p-button-sm p-button-outlined text-xs px-2"
-                                  style={{ padding: '0.4rem', minWidth: '32px' }}
-                                  title={`Agregar puntos máximos de ${col.label} (${col.points})`}
+                                  onClick={() => addColumnToFormula(col.id, 'Valor')}
+                                  className="flex-1 p-button-sm p-button-outlined text-left justify-start text-xs"
+                                  style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#6b7280' }}
+                                  title={`Agregar valor de ${col.label} (${col.id})`}
                                 >
-                                  <i className="pi pi-star-fill text-[10px] text-yellow-500"></i>
+                                  <div className="flex items-center gap-2 w-full">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
+                                      {getGroupTypeLabel(col.groupType)}
+                                    </span>
+                                    <span className="flex-1 truncate">{col.label}</span>
+                                    {col.label === currentColumnLabel && (
+                                      <span className="text-[10px] text-blue-600 font-bold">📍</span>
+                                    )}
+                                    <i className="pi pi-plus text-[10px]"></i>
+                                  </div>
                                 </Button>
-                              )}
-                            </div>
-                          ))}
+                                {col.points !== null && col.points !== undefined && (
+                                  <Button
+                                    onClick={() => addColumnToFormula(col.id, 'Puntos')}
+                                    className="p-button-sm p-button-outlined text-xs px-2"
+                                    style={{ padding: '0.4rem', minWidth: '32px' }}
+                                    title={`Agregar puntos máximos de ${col.label} (${col.points})`}
+                                  >
+                                    <i className="pi pi-star-fill text-[10px] text-yellow-500"></i>
+                                  </Button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Columnas Fijas */}
-                    {grouped.columns.length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b">
-                          📌 Columnas Fijas
-                        </div>
-                        <div className="space-y-1">
-                          {grouped.columns.map((col, index) => (
-                            <div key={`col-${index}`} className="flex gap-1">
-                              <Button
-                                onClick={() => addColumnToFormula(col.id, 'Valor')}
-                                className="flex-1 p-button-sm p-button-outlined text-left justify-start text-xs"
-                                style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#3b82f6' }}
-                                title={`Agregar valor de ${col.label} (${col.id})`}
-                              >
-                                <div className="flex items-center gap-2 w-full">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
-                                    {getGroupTypeLabel(col.groupType)}
-                                  </span>
-                                  <span className="flex-1 truncate">{col.label}</span>
-                                  {col.label === currentColumnLabel && (
-                                    <span className="text-[10px] text-blue-600 font-bold">📍</span>
-                                  )}
-                                  <i className="pi pi-plus text-[10px]"></i>
-                                </div>
-                              </Button>
-                              {col.points !== null && col.points !== undefined && (
-                                <Button
-                                  onClick={() => addColumnToFormula(col.id, 'Puntos')}
-                                  className="p-button-sm p-button-outlined text-xs px-2"
-                                  style={{ padding: '0.4rem', minWidth: '32px' }}
-                                  title={`Agregar puntos máximos de ${col.label} (${col.points})`}
-                                >
-                                  <i className="pi pi-star-fill text-[10px] text-yellow-500"></i>
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Columnas de Períodos */}
-                    {grouped.period.length > 0 && (
-                      <div>
-                        <div className="text-xs font-semibold text-gray-600 mb-2 pb-1 border-b">
-                          📅 Columnas de Períodos
-                        </div>
-                        <div className="space-y-1">
-                          {grouped.period.map((col, index) => (
-                            <div key={`period-${index}`} className="flex gap-1">
-                              <Button
-                                onClick={() => addColumnToFormula(col.id, 'Valor')}
-                                className="flex-1 p-button-sm p-button-outlined text-left justify-start text-xs"
-                                style={{ padding: '0.4rem 0.6rem', borderLeftWidth: '3px', borderLeftColor: col.groupColor || '#7c3aed' }}
-                                title={`Agregar valor de ${col.label} (${col.id})`}
-                              >
-                                <div className="flex items-center gap-2 w-full">
-                                  <span className={`px-1.5 py-0.5 rounded text-[10px] text-white ${getGroupTypeBadgeColor(col.groupType)}`}>
-                                    {getGroupTypeLabel(col.groupType)}
-                                  </span>
-                                  <span className="flex-1 truncate" title={`${col.groupLabel} - ${col.label}`}>
-                                    {col.label}
-                                  </span>
-                                  {col.label === currentColumnLabel && (
-                                    <span className="text-[10px] text-blue-600 font-bold">📍</span>
-                                  )}
-                                  <i className="pi pi-plus text-[10px]"></i>
-                                </div>
-                              </Button>
-                              {col.points !== null && col.points !== undefined && (
-                                <Button
-                                  onClick={() => addColumnToFormula(col.id, 'Puntos')}
-                                  className="p-button-sm p-button-outlined text-xs px-2"
-                                  style={{ padding: '0.4rem', minWidth: '32px' }}
-                                  title={`Agregar puntos máximos de ${col.label} (${col.points})`}
-                                >
-                                  <i className="pi pi-star-fill text-[10px] text-yellow-500"></i>
-                                </Button>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {getFilteredColumns().length === 0 && (
+                      ))
+                    ) : (
                       <p className="text-gray-500 text-sm text-center py-4">
                         No hay columnas disponibles
                       </p>

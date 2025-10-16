@@ -40,6 +40,22 @@ export interface ColumnGroupConfig {
     type: 'info' | 'period' | 'columns' | '';   // Tipo de grupo de columnas
 }
 
+export interface PreviewColumnInfo {
+  // Propiedades de ColumnExcelConfig (estándar)
+  id: string; // ID de la columna (letra Excel: A, B, C, etc.)
+  label: string; // Nombre/label de la columna
+  date?: string | null; // Fecha de la columna
+  points: number | null; // Puntos máximos de la columna (si aplica)
+  isEditable?: boolean | null; // Si la columna es editable
+  tipoValor?: TipoValor | null; // Tipo de dato de la columna
+  formula?: string | null; // Fórmula de la columna
+  // Propiedades adicionales del grupo
+  groupId: string; // ID del grupo
+  groupLabel: string; // Nombre del grupo
+  groupColor: string; // Color del grupo
+  groupType: string; // Tipo de grupo ('info', 'period', 'columns')
+}
+
 export const useExcelData = () => {
 
     // Carga inicial desde localStorage
