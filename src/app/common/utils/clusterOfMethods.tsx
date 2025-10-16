@@ -353,6 +353,96 @@ export const getExcelDataFromColumns = (vExcelData: ColumnExcelData, vGroupColum
 /*
  * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
  */
+
+/**
+ * Actualiza las fórmulas después de que los IDs de columna hayan cambiado
+ * Usa los labels como identificadores estables para mapear ID viejo → ID nuevo
+ * 
+ * @param oldConfig - Configuración antes del recálculo de IDs
+ * @param newConfig - Configuración después del recálculo de IDs
+ * @returns Configuración nueva con fórmulas actualizadas
+ */
+export const updateFormulasAfterIdChange = (
+  oldConfig: ColumnGroupConfig[], 
+  newConfig: ColumnGroupConfig[]
+): ColumnGroupConfig[] => {
+  // PASO 1: Crear mapa de label → ID viejo
+  const labelToOldId = new Map<string, string>();
+  oldConfig.forEach(group => {
+    group.columns.forEach(col => {
+      if (col.label && col.id) {
+        labelToOldId.set(col.label, col.id);
+      }
+    });
+  });
+
+  // PASO 2: Crear mapa de label → ID nuevo
+  const labelToNewId = new Map<string, string>();
+  newConfig.forEach(group => {
+    group.columns.forEach(col => {
+      if (col.label && col.id) {
+        labelToNewId.set(col.label, col.id);
+      }
+    });
+  });
+
+  // PASO 3: Crear mapa de ID viejo → ID nuevo
+  const oldIdToNewId = new Map<string, string>();
+  labelToOldId.forEach((oldId, label) => {
+    const newId = labelToNewId.get(label);
+    if (newId && oldId !== newId) {
+      oldIdToNewId.set(oldId, newId);
+    }
+  });
+
+  // PASO 4: Si no hay cambios de ID, retornar la configuración sin modificar
+  if (oldIdToNewId.size === 0) {
+    return newConfig;
+  }
+
+  // PASO 5: Actualizar todas las fórmulas en la nueva configuración
+  const updatedConfig = newConfig.map(group => ({
+    ...group,
+    columns: group.columns.map(col => {
+      // Si la columna no tiene fórmula, retornarla sin cambios
+      if (!col.formula || col.formula.trim() === '') {
+        return col;
+      }
+
+      // Parsear la fórmula en partes
+      const formulaParts = parseFormulaToArray(col.formula);
+      
+      // Actualizar referencias de columnas en la fórmula
+      const updatedParts = formulaParts.map(part => {
+        // Verificar si es una referencia de columna [ID] o [ID:Tipo]
+        if (part.startsWith('[') && part.endsWith(']')) {
+          const { columnId, refType } = parseColumnReference(part);
+          
+          // Si el ID cambió, actualizar la referencia
+          const newId = oldIdToNewId.get(columnId);
+          if (newId) {
+            // Reconstruir la referencia con el nuevo ID
+            return refType === 'Puntos' 
+              ? `[${newId}:Puntos]` 
+              : `[${newId}]`;
+          }
+        }
+        
+        // Si no es una referencia de columna o no cambió, retornar sin modificar
+        return part;
+      });
+
+      // Reconstruir la fórmula actualizada
+      const updatedFormula = arrayToFormulaString(updatedParts);
+
+      // Retornar la columna con la fórmula actualizada
+      return { ...col, formula: updatedFormula };
+    })
+  }));
+
+  return updatedConfig;
+};
+
 // Calcular automáticamente los rangos de los grupos de columnas
 export const recalculateConfigRanges = (aryColumnConfig: ColumnGroupConfig[], setConfigFun?: null | ((config: ColumnGroupConfig[]) => void)): ColumnGroupConfig[] => {
   // Redefinir el ID de los grupos de columnas
