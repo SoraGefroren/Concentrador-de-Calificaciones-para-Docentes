@@ -9,6 +9,13 @@ export const typeColumnsGroup = 'columns';
 // Tipos para el campo tipoValor
 export type TipoValor = 'Texto' | 'Email' | 'Número' | null;
 
+// Tipos de opciones para dropdowns
+export const tipoValorOptions = [
+    { label: 'Texto', value: 'Texto' },
+    { label: 'Email', value: 'Email' },
+    { label: 'Número', value: 'Número' }
+];
+
 export interface ColumnExcelData {
     [key: string]: string | number;
 }

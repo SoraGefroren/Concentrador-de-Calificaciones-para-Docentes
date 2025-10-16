@@ -1,7 +1,7 @@
 import Menu from '../common/Menu.tsx';
 import { useRef, useState } from 'react';
 import { useExcelContext } from '../common/contexts/ExcelContext.tsx';
-import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup, TipoValor} from '../common/hooks/useExcelData.tsx';
+import { ColumnExcelConfig, ColumnExcelData, ColumnGroupConfig, typeColumnsGroup, typePeriodGroup, TipoValor, tipoValorOptions} from '../common/hooks/useExcelData.tsx';
 import { Card } from 'primereact/card';
 import { Toast } from 'primereact/toast';
 import { Button } from 'primereact/button';
@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
-import { getDefaultColumnConfig, getExcelColumnName, getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel } from '../common/utils/clusterOfMethods.tsx';
+import { getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel, recalculateConfigRanges, generateDefaultColumnConfig } from '../common/utils/clusterOfMethods.tsx';
 import FormulaEditor from '../common/components/FormulaEditor.tsx';
 import { translateToExcelFormula } from '../common/utils/excelFormulaTranslator.tsx';
 import * as XLSX from 'xlsx';
@@ -35,52 +35,9 @@ const ConfiguracionHoja = () => {
   // Abstraer los datos de los estudiantes
   const studentsExcelData = excelData.length > 2 ? [...excelData].slice(2, excelData.length) : [];
   
-  /*
-   * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
-   */
-  // Calcular automáticamente los rangos de los grupos de columnas
-  const recalculateConfigRanges = (aryColumnConfig: ColumnGroupConfig[], bSetConfig: boolean = true): ColumnGroupConfig[] => {
-    // Redefinir el ID de los grupos de columnas
-    let currentColumnIndex = 1;
-    // Recorrer cada grupo de columnas
-    for (let x = 0; x < aryColumnConfig.length; x++) {
-      // Obtener la configuración del grupo actual
-      const colsConfig = aryColumnConfig[x];
-      const firstColIndex = currentColumnIndex;
-      const lastColIndex = currentColumnIndex + (colsConfig.columns.length - 1);
-      // Recorrer cada una de las columnas del grupo
-      for (let y = 0; y < colsConfig.columns.length; y++) {
-        // Redefinir el ID de las columnas de los grupos de columnas
-        aryColumnConfig[x].columns[y].id = getExcelColumnName(currentColumnIndex);
-        currentColumnIndex += 1;
-      }
-      // Redefinir el ID del grupo de columnas
-      aryColumnConfig[x].id = getExcelColumnName(firstColIndex) + ':' + getExcelColumnName(lastColIndex);
-    }
-    // Valida si debe actualizar la configuración
-    if (bSetConfig) {
-      // Actualizar la configuración de los grupos de columnas
-      setConfig(aryColumnConfig ? [...aryColumnConfig] : []);
-    }
-    // Devuelve los indices de los primeros grupos sin ID
-    return aryColumnConfig;
-  };
-  
-  // Función para generar configuración por defecto
-  const generateDefaultColumnConfig = (): ColumnGroupConfig[] => {
-
-    // Generar configuración por defecto
-    const newAryColumnConfig = getDefaultColumnConfig();
-
-    // Calcular automáticamente los rangos de los grupos de columnas
-    const aryDefaultConfig = recalculateConfigRanges(newAryColumnConfig, false);
-
-    // Devolver la configuración generada
-    return aryDefaultConfig;
-  };
-
+  // Función para actualizar la configuración de los grupos de columnas
   const updatedColumnGroup = (colGroupConfig: ColumnGroupConfig[]): void => {
-    recalculateConfigRanges(colGroupConfig ? [...colGroupConfig] : [], true);
+    recalculateConfigRanges(colGroupConfig ? [...colGroupConfig] : [], setConfig);
   };
 
   /*
@@ -103,31 +60,10 @@ const ConfiguracionHoja = () => {
   const [showFormulaEditor, setShowFormulaEditor] = useState(false);
   const [currentEditingColumn, setCurrentEditingColumn] = useState<{groupId: string, columnId: string, currentFormula: string, currentLabel: string} | null>(null);
   
-  // Opciones para los dropdowns
-  const tipoValorOptions = [
-    { label: 'Texto', value: 'Texto' },
-    { label: 'Email', value: 'Email' },
-    { label: 'Número', value: 'Número' }
-  ];
-
   /*
-   * FUNCIONES PARA MANEJO DE FÓRMULAS CON REFERENCIAS A LABELS
+   * FUNCIONES PARA MANEJO DE FÓRMULAS CON REFERENCIAS
    */
-
-  // Obtener todos los labels disponibles para usar en fórmulas (versión antigua - mantener para compatibilidad)
-  const getAllColumnLabels = (): string[] => {
-    const labels: string[] = [];
-    columnConfig.forEach(group => {
-      group.columns.forEach(col => {
-        if (col.label && col.label.trim() !== '') {
-          labels.push(col.label);
-        }
-      });
-    });
-    return labels;
-  };
-
-  // Nueva función: Obtener todas las columnas con información de grupo
+  // Obtener todas las columnas con información de grupo
   const getAllColumnsWithGroupInfo = () => {
     const columns: Array<{id: string, label: string, groupType: string, groupLabel: string, groupColor?: string, tipoValor?: TipoValor | null, points?: number | null}> = [];
     columnConfig.forEach(group => {
@@ -304,25 +240,6 @@ const ConfiguracionHoja = () => {
   const handleCancelFormulaEdit = () => {
     setShowFormulaEditor(false);
     setCurrentEditingColumn(null);
-  };
-
-  // Validar que un label sea único
-  const isLabelUnique = (label: string, currentGroupId: string, currentColumnId: string): boolean => {
-    if (!label || label.trim() === '') return true;
-    
-    let count = 0;
-    columnConfig.forEach(group => {
-      group.columns.forEach(col => {
-        if (col.label === label) {
-          // Si es la misma columna que estamos editando, no contar
-          if (group.id === currentGroupId && col.id === currentColumnId) {
-            return;
-          }
-          count++;
-        }
-      });
-    });
-    return count === 0;
   };
 
   // Obtener todas las columnas que usan un label específico en sus fórmulas
@@ -626,6 +543,7 @@ const ConfiguracionHoja = () => {
     updateColumnFromGroup(groupId, columnId, { date: formattedDate });
   };
 
+  // Función para actualizar una columna específica dentro de un grupo
   const updateColumnFromGroup = (groupId: string, columnId: string, updates: { label?: string; date?: string; points?: number; isEditable?: boolean; tipoValor?: TipoValor, formula?: string }) => {
       // Si se está actualizando el label, validar y actualizar fórmulas
       if (updates.label !== undefined) {
@@ -634,9 +552,26 @@ const ConfiguracionHoja = () => {
         const column = group?.columns.find(c => c.id === columnId);
         const oldLabel = column?.label || '';
         const newLabel = updates.label;
-        
+        // Validar que un label sea único
+        const isLabelUnique = ((label: string, currentGroupId: string, currentColumnId: string): boolean => {
+            if (!label || label.trim() === '')
+              return true;
+            let count = 0;
+            columnConfig.forEach(group => {
+              group.columns.forEach(col => {
+                if (col.label === label) {
+                  // Si es la misma columna que estamos editando, no contar
+                  if (group.id === currentGroupId && col.id === currentColumnId) {
+                    return;
+                  }
+                  count++;
+                }
+              });
+            });
+            return count === 0;
+          })(newLabel, groupId, columnId);
         // Validar unicidad del nuevo label
-        if (newLabel && newLabel.trim() !== '' && !isLabelUnique(newLabel, groupId, columnId)) {
+        if (newLabel && newLabel.trim() !== '' && !isLabelUnique) {
           toast.current?.show({
             severity: 'warn',
             summary: 'Label duplicado',
@@ -1913,24 +1848,6 @@ const ConfiguracionHoja = () => {
                 </div>
               </Card>
 
-              {/* Card de Lista de Columnas Disponibles */}
-              <Card className="bg-indigo-50 border-l-4 border-indigo-500">
-                <h4 className="font-bold text-lg mb-3 text-indigo-800">📋 Columnas Disponibles</h4>
-                <div className="space-y-2 text-sm max-h-96 overflow-y-auto">
-                  {getAllColumnLabels().length > 0 ? (
-                    getAllColumnLabels().map((label, index) => (
-                      <div key={index} className="bg-white p-2 rounded border flex items-center justify-between">
-                        <span className="text-gray-700">{label}</span>
-                        <code className="text-indigo-700 bg-indigo-100 px-2 py-1 rounded text-xs">
-                          [{label}]
-                        </code>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 text-center py-4">No hay columnas configuradas aún</p>
-                  )}
-                </div>
-              </Card>
             </div>
           </TabPanel>
         </TabView>
@@ -1951,11 +1868,11 @@ const ConfiguracionHoja = () => {
       {/* Componente del Editor Visual de Fórmulas */}
       <FormulaEditor
         visible={showFormulaEditor}
-        onHide={handleCancelFormulaEdit}
         onSave={handleSaveFormula}
+        onHide={handleCancelFormulaEdit}
         currentFormula={currentEditingColumn?.currentFormula || ''}
-        availableColumns={getAllColumnsWithGroupInfo()}
         currentColumnLabel={currentEditingColumn?.currentLabel}
+        availableColumns={getAllColumnsWithGroupInfo()}
       />
     </>
   );

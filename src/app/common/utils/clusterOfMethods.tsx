@@ -349,3 +349,47 @@ export const getExcelDataFromColumns = (vExcelData: ColumnExcelData, vGroupColum
     // Obtener las columnas del rango específico para este grupo
     return availableExcelData;
 };
+
+/*
+ * FUNCIONES PARA TRATAR CON LA CONFIGURACIÓN DE GRUPOS DE COLUMNAS
+ */
+// Calcular automáticamente los rangos de los grupos de columnas
+export const recalculateConfigRanges = (aryColumnConfig: ColumnGroupConfig[], setConfigFun?: null | ((config: ColumnGroupConfig[]) => void)): ColumnGroupConfig[] => {
+  // Redefinir el ID de los grupos de columnas
+  let currentColumnIndex = 1;
+  // Recorrer cada grupo de columnas
+  for (let x = 0; x < aryColumnConfig.length; x++) {
+    // Obtener la configuración del grupo actual
+    const colsConfig = aryColumnConfig[x];
+    const firstColIndex = currentColumnIndex;
+    const lastColIndex = currentColumnIndex + (colsConfig.columns.length - 1);
+    // Recorrer cada una de las columnas del grupo
+    for (let y = 0; y < colsConfig.columns.length; y++) {
+      // Redefinir el ID de las columnas de los grupos de columnas
+      aryColumnConfig[x].columns[y].id = getExcelColumnName(currentColumnIndex);
+      currentColumnIndex += 1;
+    }
+    // Redefinir el ID del grupo de columnas
+    aryColumnConfig[x].id = getExcelColumnName(firstColIndex) + ':' + getExcelColumnName(lastColIndex);
+  }
+  // Valida si debe actualizar la configuración
+  if (setConfigFun) {
+    // Actualizar la configuración de los grupos de columnas
+    setConfigFun(aryColumnConfig ? [...aryColumnConfig] : []);
+  }
+  // Devuelve los indices de los primeros grupos sin ID
+  return aryColumnConfig;
+};
+
+// Función para generar configuración por defecto
+export const generateDefaultColumnConfig = (): ColumnGroupConfig[] => {
+
+  // Generar configuración por defecto
+  const newAryColumnConfig = getDefaultColumnConfig();
+
+  // Calcular automáticamente los rangos de los grupos de columnas
+  const aryDefaultConfig = recalculateConfigRanges(newAryColumnConfig, null);
+
+  // Devolver la configuración generada
+  return aryDefaultConfig;
+};
