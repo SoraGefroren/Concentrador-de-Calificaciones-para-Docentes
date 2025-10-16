@@ -61,7 +61,6 @@ const ChangeDataSheetModal = ({ visible, onHide }: ChangeDataSheetModalProps) =>
         onHide();
         navigate('/');
     } else {
-      console.error('Error al cargar el archivo');
       toast.current?.show({
         severity: 'error',
         summary: 'Error',

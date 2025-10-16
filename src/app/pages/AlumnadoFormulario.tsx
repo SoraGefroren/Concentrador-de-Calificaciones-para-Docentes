@@ -204,7 +204,6 @@ const AlumnadoFormulario = () => {
             }
             
         } catch (error) {
-            console.error('Error al guardar los datos:', error);
             toast.current?.show({
                 severity: 'error',
                 summary: 'Error',
@@ -402,7 +401,6 @@ const AlumnadoFormulario = () => {
                             life: 3000
                         });
                     } catch (error) {
-                        console.error('Error al recargar el archivo:', error);
                         toast.current?.show({
                             severity: 'warn',
                             summary: 'Archivo descargado',
@@ -414,7 +412,6 @@ const AlumnadoFormulario = () => {
             }
 
         } catch (error) {
-            console.error('Error al generar el archivo Excel:', error);
             throw new Error('No se pudo generar el archivo Excel actualizado');
         }
     };

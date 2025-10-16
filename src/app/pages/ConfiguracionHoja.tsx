@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { Column } from 'primereact/column';
 import { TabView, TabPanel } from 'primereact/tabview';
 import { ConfirmDialog, confirmDialog } from 'primereact/confirmdialog';
-import { getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel, recalculateConfigRanges, generateDefaultColumnConfig, validateFormulaComplete } from '../common/utils/clusterOfMethods.tsx';
+import { getSectionsColumnsConfig, validateDateFormat, formatDateFromExcel, recalculateConfigRanges, generateDefaultColumnConfig, validateFormulaComplete, parseFormulaToArray, parseColumnReference, arrayToFormulaString } from '../common/utils/clusterOfMethods.tsx';
 import FormulaEditor from '../common/components/FormulaEditor.tsx';
 import { translateToExcelFormula } from '../common/utils/excelFormulaTranslator.tsx';
 import * as XLSX from 'xlsx';
@@ -37,7 +37,54 @@ const ConfiguracionHoja = () => {
   
   // Función para actualizar la configuración de los grupos de columnas
   const updatedColumnGroup = (colGroupConfig: ColumnGroupConfig[]): void => {
-    recalculateConfigRanges(colGroupConfig ? [...colGroupConfig] : [], setConfig);
+    // Clonar la configuración actual
+    const currentColGroupConfig = colGroupConfig ? [...colGroupConfig] : [];
+    const nextGroupConfig = recalculateConfigRanges(currentColGroupConfig, null);
+    // Recorrer la configuración de los grupos de columnas
+    for (let i = 0; i < currentColGroupConfig.length; i++) {
+      // Instanciar la configuración del grupo actual
+      const rowGroupConfig = currentColGroupConfig[i];
+      const rowsExcelConfig = rowGroupConfig.columns;
+      // Recorrer la configuración de las columnas del grupo
+      for (let j = 0; j < rowsExcelConfig.length; j++) {
+        // Instanciar la configuración de la columna actual
+        const rowExcelConfig = rowsExcelConfig[j];
+        // Verificar si hay una FORMULA asociada
+        if (rowExcelConfig.formula) {
+          const isColumn = (p: string) => p.startsWith('[') && p.endsWith(']') && p.length > 2;
+          const tknsFormParts = parseFormulaToArray(rowExcelConfig.formula);
+          let bandTknsChange = false;
+          // Recorrer los tokens de la fórmula
+          tknsFormParts.map(tknFormPart => {
+            if (isColumn(tknFormPart)) {
+              // Hacer algo con las columnas
+              const { columnId, refType } = parseColumnReference(tknFormPart);
+              // Buscar columnId en la configuración actual
+              const myExcelConfig = currentColGroupConfig.find(currGroupConfig => currGroupConfig.columns.find(currExcelConfig => currExcelConfig.id === columnId));
+              // Verificar que exista la columna
+              if (myExcelConfig) {
+                // Buscar columnId en la nueva configuración
+                const nwExcelConfig = nextGroupConfig.find(currGroupConfig => currGroupConfig.columns.find(currExcelConfig => currExcelConfig.label === myExcelConfig.label));
+                // Verifica si el ID cambio
+                if (nwExcelConfig && myExcelConfig.id !== nwExcelConfig.id) {
+                  tknFormPart = `[${nwExcelConfig.id + (refType? (':' + refType): '' )}]`;
+                  bandTknsChange = true;
+                }
+              }
+            }
+            return tknFormPart;
+          });
+          // Verificar si hubo cambios en los tokens
+          if (bandTknsChange) {
+            // Actualizar Formula
+            rowExcelConfig.formula = arrayToFormulaString(tknsFormParts);
+          }
+        }
+      }
+    }
+    debugger;
+    // Finalmente, actualizar la configuración
+    recalculateConfigRanges(currentColGroupConfig, setConfig);
   };
 
   /*
@@ -730,7 +777,6 @@ const ConfiguracionHoja = () => {
             }, 1000);
           }
         } catch (error) {
-          console.error('Error al cargar el archivo:', error);
           // Lanzar mensaje
           toast.current?.show({
             severity: 'warn',
@@ -746,7 +792,6 @@ const ConfiguracionHoja = () => {
       }, 2000);
 
     } catch (error) {
-      console.error('Error al generar el archivo Excel:', error);
       // Lanzar mensaje
       toast.current?.show({
         severity: 'error',

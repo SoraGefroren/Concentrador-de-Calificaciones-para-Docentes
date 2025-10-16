@@ -44,7 +44,6 @@ export const evaluateFormula = (
     
     return result;
   } catch (error) {
-    console.error('Error al evaluar fórmula:', formula, error);
     return null;
   }
 };
@@ -68,8 +67,6 @@ const replaceFormulaReferences = (
       }
     });
   });
-
-  console.log('📋 Mapa de columnas disponibles:', Array.from(columnMap.entries()));
 
   // Buscar todas las referencias [...]
   const referencePattern = /\[([^\]]+)\]/g;
@@ -95,31 +92,23 @@ const replaceFormulaReferences = (
     const colInfo = columnMap.get(columnId);
     
     if (!colInfo) {
-      console.warn(`❌ Columna con ID "${columnId}" no encontrada en la configuración`);
       return '0';
     }
-
-    console.log(`🔍 Resolviendo [${trimmedContent}] → columnId: ${columnId}, label: ${colInfo.label}, refType: ${refType}`);
 
     // Obtener el valor correspondiente
     if (refType === 'Puntos') {
       // Buscar los puntos configurados
       if (colInfo.points !== null && colInfo.points !== undefined) {
-        console.log(`  → Puntos: ${colInfo.points}`);
         return colInfo.points.toString();
       } else {
-        console.warn(`⚠️ Columna "${colInfo.label}" (${columnId}) no tiene puntos configurados`);
         return '0';
       }
     } else {
       // Buscar el valor en los datos del estudiante usando el label
       const value = studentData[colInfo.label];
       
-      console.log(`  → Buscando valor en studentData["${colInfo.label}"]:`, value);
-      
       if (value === null || value === undefined || value === '') {
         // Si no hay valor, usar 0 para evitar errores
-        console.log(`  → Sin valor, usando 0`);
         return '0';
       }
       
@@ -127,11 +116,9 @@ const replaceFormulaReferences = (
       const numValue = typeof value === 'number' ? value : parseFloat(String(value));
       
       if (isNaN(numValue)) {
-        console.warn(`⚠️ Valor no numérico en columna "${colInfo.label}" (${columnId}): ${value}`);
         return '0';
       }
-      
-      console.log(`  → Valor numérico: ${numValue}`);
+
       return numValue.toString();
     }
   });
@@ -165,7 +152,6 @@ const evaluateMathExpression = (expr: string): number | null => {
     
     return null;
   } catch (error) {
-    console.error('Error al evaluar expresión matemática:', expr, error);
     return null;
   }
 };

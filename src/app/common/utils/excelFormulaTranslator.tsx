@@ -67,7 +67,6 @@ export const translateToExcelFormula = (
       const columnLetter = columnMap.get(columnId.trim());
       
       if (!columnLetter) {
-        console.warn(`Columna con ID "${columnId}" no encontrada en la configuración al traducir fórmula`);
         return '0'; // Valor por defecto si no se encuentra
       }
       
@@ -83,7 +82,6 @@ export const translateToExcelFormula = (
       const columnLetter = columnMap.get(columnId.trim());
       
       if (!columnLetter) {
-        console.warn(`Columna con ID "${columnId}" no encontrada en la configuración al traducir fórmula`);
         return '0';
       }
       
@@ -100,7 +98,6 @@ export const translateToExcelFormula = (
       const columnLetter = columnMap.get(columnId.trim());
       
       if (!columnLetter) {
-        console.warn(`Columna con ID "${columnId}" no encontrada en la configuración al traducir fórmula`);
         return '0';
       }
       
@@ -157,7 +154,6 @@ export const translateFromExcelFormula = (
       const columnId = letterToColumnIdMap.get(letter);
       
       if (!columnId) {
-        console.warn(`Letra de columna "${letter}" no encontrada al traducir desde Excel`);
         return '0';
       }
       
@@ -172,7 +168,6 @@ export const translateFromExcelFormula = (
       const columnId = letterToColumnIdMap.get(letter);
       
       if (!columnId) {
-        console.warn(`Letra de columna "${letter}" no encontrada al traducir desde Excel`);
         return '0';
       }
       

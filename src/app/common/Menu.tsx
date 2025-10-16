@@ -47,16 +47,13 @@ const Menu = ({ children, navBarTitle, showLateralMenu = true, showControlsMenu 
 
     const handleMenuToggle = () => {
         if (isMobile) {
-            console.log('Mobile menu toggle:', !mobileSidebarVisible);
             setMobileSidebarVisible(!mobileSidebarVisible);
         } else {
-            console.log('Desktop menu toggle:', !desktopMenuVisible);
             setDesktopMenuVisible(!desktopMenuVisible);
         }
     };
 
     const handleSidebarHide = () => {
-        console.log('Sidebar hide called');
         setMobileSidebarVisible(false);
     };
 
